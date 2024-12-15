@@ -17,8 +17,8 @@ def st_manage_supabase():
     api_key = st.secrets["SUPABASE_KEY"]
     url_key = st.secrets["SUPABASE_URL"]
 
-    st.write(api_key)
-    st.write(url_key)
+    # st.write(api_key)
+    # st.write(url_key)
 
     supabase = create_client(url_key, api_key)
 
