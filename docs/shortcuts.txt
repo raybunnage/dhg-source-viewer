@@ -1,0 +1,12 @@
+SUPABASE_URL=https://jdksnfkupzywjdfefkyj.supabase.co
+SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impka3NuZ$
+
+call this section: INSTRUCTIONS: write instructions for this module - first copy the code that follows the main function. Then put a USAGE section that lists how to use the functions. Then put the API Functions (the ones called other modules or the ones that are marked with **).  Then put the MAIN functions - the ones that have been called by the main function and finally the HELPER functions (the ones called by other functions in the module) Please put the name of the calling function in the documentation.  Descirbe what do each function does do  when and how to use them (USAGE).  Also describe the status of the module. Also provide FEEDBACK on how the module is organized and whether or not its functions belong together and how it might be better organized. Finally provide a list of functions in the module that are either not called by other functions or are duplicate functions.
+
+Write and insert documentation into each function that describes its function, arguments, return values and how it could be improved.  If there is existing documentation, check it for accuracy and if necessary rewrite it to be accurate. 
+
+3.11.10
+
+rewrite the instructions as is, only shift things around.  Make a new category of functions at the top that is called API FUNCTIONS and move any function under it that has two **.  Renumber accordingly.  The next section is MAIN FUNCTIONS and then HELPER FUNCTIONS.
+
+evaluate each of the functions for the function documentation against the function implementatin to make sure the documentation is correct.  Make any corrections in the documentaiton needed to make it match the implementation.
