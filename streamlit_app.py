@@ -1,6 +1,5 @@
 import streamlit as st
 from supabase import create_client
-import os
 from dotenv import load_dotenv
 
 from src.database import test_supabase_connection
@@ -11,21 +10,39 @@ from src.database import test_supabase_connection
 # supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 
-def st_supa():
+def st_manage_supabase():
     st.set_page_config(layout="wide")
     st.title("Supabase Connection Test")
-    users = test_supabase_connection()
 
-    # Debug print to see the structure
-    # st.write("Debug - Users data:", users.data)
+    api_key = st.secrets["SUPABASE_KEY"]
+    url_key = st.secrets["SUPABASE_URL"]
 
-    # Then use the correct key from what you see in the debug output
-    # For example, if the key is "username" instead of "name":
-    user_list = [user["username"] for user in users.data]  # Adjust the key as needed
+    st.write(api_key)
+    st.write(url_key)
 
-    selected_user = st.selectbox("Select a User", user_list)
-    st.write(f"Selected User: {selected_user}")
+    supabase = create_client(url_key, api_key)
 
+    users = supabase.table("test").select("*").execute()
+    st.write(f"Number of users: {len(users.data)}")
+
+    # st.write(users)
+
+
+# def st_supa():
+#     st.set_page_config(layout="wide")
+#     st.title("Supabase Connection Test")
+
+#     users = test_supabase_connection()
+
+#     # Debug print to see the structure
+#     # st.write("Debug - Users data:", users.data)
+
+#     # Then use the correct key from what you see in the debug output
+#     # For example, if the key is "username" instead of "name":
+#     user_list = [user["username"] for user in users.data]  # Adjust the key as needed
+
+#     selected_user = st.selectbox("Select a User", user_list)
+#     st.write(f"Selected User: {selected_user}")
 
 
 # def authenticate_user():
@@ -54,8 +71,7 @@ def st_supa():
 #     return True
 
 
-
 if __name__ == "__main__":
-    st_supa()
+    st_manage_supabase()
 
 # streamlit run streamlit_app.py
