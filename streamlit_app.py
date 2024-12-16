@@ -37,9 +37,12 @@ def main():
         initial_sidebar_state="expanded",
     )
 
-    # Add custom CSS
+    # Add custom CSS and meta tag
     st.markdown(
         """
+        <head>
+            <meta name="google-site-verification" content="uWwZGPEj-VhyxnZR6ZY30cLk_HiL-PVPYyBz0M1w36I" />
+        </head>
         <style>
         .stApp {
             max-width: 1200px;
