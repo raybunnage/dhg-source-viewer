@@ -10,6 +10,13 @@ def show_privacy_policy():
     st.markdown(privacy_policy_content)
 
 
+def show_terms_of_service():
+    terms_path = Path(__file__).parent / "docs" / "terms-of-service.md"
+    with open(terms_path, "r") as f:
+        terms_content = f.read()
+    st.markdown(terms_content)
+
+
 def show_supabase_management():
     st.title("Supabase Connection Test")
 
@@ -45,13 +52,15 @@ def main():
 
     # Navigation sidebar
     st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to", ["Supabase Management", "Privacy Policy"])
+    page = st.sidebar.radio("Go to", ["Supabase Management", "Privacy Policy", "Terms of Service"])
 
     # Display the selected page
     if page == "Supabase Management":
         show_supabase_management()
     elif page == "Privacy Policy":
         show_privacy_policy()
+    elif page == "Terms of Service":
+        show_terms_of_service()
 
     # Footer
     st.markdown("---")
