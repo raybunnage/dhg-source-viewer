@@ -4,17 +4,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# os.environ["SUPABASE_URL"] = "https://jdksnfkupzywjdfefkyj.supabase.co"
-# os.environ["SUPABASE_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impka3NuZ$"
-
-# print("SUPABASE_URL:", os.getenv("SUPABASE_URL"))
-# print("SUPABASE_KEY:", os.getenv("SUPABASE_KEY"))
-
-# https://jdksnfkupzywjdfefkyj.supabase.co
-
-
-# eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impka3NuZmt1cHp5d2pkZmVma3lqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQxODkwMTMsImV4cCI6MjA0OTc2NTAxM30.035475oKIiE1pSsfQbRoje4-FRT9XDKAk6ScHYtaPsQ
-
 
 def test_supabase_connection():
     url = os.getenv("SUPABASE_URL")
