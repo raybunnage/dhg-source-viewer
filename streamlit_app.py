@@ -1,5 +1,11 @@
 import streamlit as st
 from supabase import create_client
+
+import streamlit as st
+from src.auth import authenticate_user
+from src.database import get_folders, get_files
+from src.utils import setup_page
+
 from dotenv import load_dotenv
 
 from src.database import test_supabase_connection
@@ -71,7 +77,34 @@ def st_manage_supabase():
 #     return True
 
 
+def main():
+    setup_page()
+
+    # Authentication
+    # if not authenticate_user():
+    #     st.warning("Please log in to access the file viewer.")
+    #     return
+
+    # Sidebar navigation
+    st.sidebar.title("Navigation")
+    selected_folder = st.sidebar.selectbox("Select Folder", get_folders())
+
+    # Main content
+    st.title("DHG Source Viewer")
+
+    if selected_folder:
+        files = get_files(selected_folder)
+        if files:
+            for file in files:
+                st.write(f"📄 {file['name']}")
+        else:
+            st.info("No files found in this folder")
+
+
 if __name__ == "__main__":
-    st_manage_supabase()
+    main()
+
+# if __name__ == "__main__":
+#     st_manage_supabase()
 
 # streamlit run streamlit_app.py
