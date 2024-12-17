@@ -25,6 +25,12 @@ from googleapiclient.discovery import build
 #     supabase = None
 
 
+def do_load_dotenv():
+    load_dotenv()
+    GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
+    print(GOOGLE_CREDENTIALS)
+
+
 def get_new_drive_service_from_file():
     credentials = service_account.Credentials.from_service_account_file(
         "client_secrets.json", scopes=["https://www.googleapis.com/auth/drive"]
@@ -66,6 +72,25 @@ def list_new_folders(parent_folder_id=None):
 
     return folders
 
+    # Approach 2: Using environment variable (good for deployment)
+
+
+def get_credentials_from_env():
+    google_creds = os.getenv("GOOGLE_CREDENTIALS")
+    if not google_creds:
+        raise ValueError("GOOGLE_CREDENTIALS environment variable is not set")
+
+    try:
+        service_account_info = json.loads(google_creds)
+        credentials = service_account.Credentials.from_service_account_info(
+            service_account_info, scopes=["https://www.googleapis.com/auth/drive"]
+        )
+        return credentials
+    except json.JSONDecodeError:
+        raise ValueError(
+            "GOOGLE_CREDENTIALS environment variable contains invalid JSON"
+        )
+
 
 def print_google_credentials():
     # Read your client_secrets.json
@@ -79,8 +104,26 @@ def print_google_credentials():
     print(f'GOOGLE_CREDENTIALS = "{creds_str}"')
 
 
+def get_google_credentials_from_secrets():
+    google_creds = st.secrets["GOOGLE_CREDENTIALS"]
+    service_account_info = json.loads(google_creds)
+
+    try:
+        service_account_info = json.loads(google_creds)
+        credentials = service_account.Credentials.from_service_account_info(
+            service_account_info, scopes=["https://www.googleapis.com/auth/drive"]
+        )
+        return credentials
+    except json.JSONDecodeError:
+        st.error("Invalid JSON in GOOGLE_CREDENTIALS secret")
+        return None
+
+
 if __name__ == "__main__":
-    list_new_folders()
+    # get_google_credentials_from_secrets()
+    print_google_credentials()
+    # do_load_dotenv()
+    # print_google_credentials()
 
 
 # def get_drive_service():
@@ -214,9 +257,9 @@ if __name__ == "__main__":
 #     return credentials
 
 
-load_dotenv()
+# load_dotenv()
 
-supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+# supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 
 def authenticate_user():
