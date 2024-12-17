@@ -105,23 +105,140 @@ def print_google_credentials():
 
 
 def get_google_credentials_from_secrets():
-    google_creds = st.secrets["GOOGLE_CREDENTIALS"]
-    service_account_info = json.loads(google_creds)
-
     try:
-        service_account_info = json.loads(google_creds)
+        google_creds = st.secrets["GOOGLE_CREDENTIALS"]
+
+        # If the credentials are already a dict, use them directly
+        if isinstance(google_creds, dict):
+            service_account_info = google_creds
+        else:
+            # Clean up the credentials string
+            if isinstance(google_creds, str):
+                # Remove any extra quotes and whitespace
+                google_creds = google_creds.strip().strip("\"'")
+
+                # Handle the private key newlines before JSON parsing
+                google_creds = google_creds.replace(
+                    "\\n", "\\\\n"
+                )  # Double escape newlines
+                google_creds = google_creds.replace(
+                    "\n", "\\n"
+                )  # Handle actual newlines
+
+                try:
+                    service_account_info = json.loads(google_creds)
+                except json.JSONDecodeError as e:
+                    print(f"JSON parsing error at position {e.pos}: {e.msg}")
+                    print(
+                        f"Context: ...{google_creds[max(0, e.pos-50):min(len(google_creds), e.pos+50)]}..."
+                    )
+                    return None
+            else:
+                print(f"Unexpected credentials type: {type(google_creds)}")
+                return None
+
+        # Fix private key formatting after parsing
+        if "private_key" in service_account_info:
+            service_account_info["private_key"] = service_account_info[
+                "private_key"
+            ].replace("\\n", "\n")
+
+        # Rest of the function remains the same...
+        required_fields = [
+            "type",
+            "project_id",
+            "private_key_id",
+            "private_key",
+            "client_email",
+        ]
+        missing_fields = [
+            field for field in required_fields if field not in service_account_info
+        ]
+        if missing_fields:
+            print(f"Missing required fields in credentials: {missing_fields}")
+            return None
+
         credentials = service_account.Credentials.from_service_account_info(
             service_account_info, scopes=["https://www.googleapis.com/auth/drive"]
         )
         return credentials
-    except json.JSONDecodeError:
-        st.error("Invalid JSON in GOOGLE_CREDENTIALS secret")
+
+    except Exception as e:
+        print(f"Unexpected error in get_google_credentials_from_secrets: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
         return None
 
 
+# rom google.oauth2 import service_account
+
+# The private key from Google should be formatted with literal \n characters
+# replaced with actual newlines and proper begin/end markers
+
+
+def format_service_account_key(private_key):
+    """
+    Format a service account configuration with proper private key formatting.
+
+    Args:
+        client_id (str): The client ID from Google
+        private_key (str): The private key string from the JSON credentials
+
+    Returns:
+        dict: Properly formatted service account info dictionary
+    """
+    # Ensure the private key has proper newlines
+    formatted_key = private_key.replace("\\n", "\n")
+
+    # Make sure the key has proper BEGIN/END markers if they're missing
+    if not formatted_key.startswith("-----BEGIN PRIVATE KEY-----"):
+        formatted_key = "-----BEGIN PRIVATE KEY-----\n" + formatted_key
+    if not formatted_key.endswith("-----END PRIVATE KEY-----"):
+        formatted_key = formatted_key + "\n-----END PRIVATE KEY-----\n"
+
+    # Create the service account info dictionary
+    service_account_info = {
+        "type": "service_account",
+        "project_id": "fabled-imagery-444902-k1",
+        "private_key": formatted_key,
+        "private_key_id": "4abf1e79183be159f2a02ebdf2079440cee5b23d",
+        "client_email": "dhg-drive-helper@fabled-imagery-444902-k1.iam.gserviceaccount.com",
+        "client_id": "112125686334929012732",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/dhg-drive-helper%40fabled-imagery-444902-k1.iam.gserviceaccount.com",
+        "universe_domain": "googleapis.com",
+    }
+
+    return service_account_info
+
+
+# Example usage:
+
+private_key = "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCxFksSsliR5nfB\nU4zvFpiMA2yepgsDmMEDPvk/PzizIEYcti9C9oPAJbCUjCFzAebcYULN35bstsOw\nK4Zo4M1YxQJhOdBWWrEcnRjjgz0oUV7/xN0Y7s69yPJ4c4Brz64Rdz14DVjNxFxx\nGAsJZZWcMdHnWEDGCnB7DhNbeoTgOcnbM/HvfJLjboTTT0BtGvUoaIfyMGxUVqox\nzez0aRioaZhFgoIjwvTsergi9kRlR9c4kkh0hKDOjvvzSsvLZeGICkM+VSKK+OZa\nYNHJwmYaZyfwz6A8cyvfPJtyeuUpR38bfBn+enm4ncpjd9VT70EHHTY/SqNGX0Fu\nIMYz/28XAgMBAAECggEAP9tyoeDXCHGrkHbA9PxYcPDRK9pjUV41h6afOXviRdGn\nBrZ5j3OWaeUNalunujGe3qxh6xwr79st8KqZUttxoQeVxpqS8njMsi1CKtSJ6q6B\nC8khE1sWCSDbsqyvy/C9a8XsUAy8D6M11IBfhnlvvD3I29waq29bRTx7pXqmTLZg\ncCdbscHSTwfPCcwNgU7XihkmLUUft94k61oeXD9hf6mbWmY78AqU+H2FzEVsOhLu\n5UCJA+OlBB8+s5ZQRQeThPRE8TfleBotSfKcqg1LLYfFPxMrMJxCjl6Jjk+azIHl\nuxANvuIQntIwIKTlF5WXp42RNfVy82RpvSdPwqJCnQKBgQDWqY4mGO2zcYCaFTCK\nazWGU4v7y+4usR3mJ7ELPnJrrlP4lUocUfo/wY/am/cLT0Hbm6NtnaxKEgHtcdDG\ntr8iNG2cPNQD9nQdF8FYNNe1DjRUJt9qCTnHtHx8egU28mQURlL6ULB0snJU1reF\n4RIC1Lpbntj4RrybQJ6EqmbXnQKBgQDTMFmV5tKvDsRbcBY3CQlZkV9sWJKYwAsP\naC1AtUzYi35x1u3vxjhWPcbnUnp5xGSdw2fRpKrBqsQ9UgZH98dlZ8YIpojRwXul\nClEE4CTPpAGeE80JHK6ldAw/WcRDlUUoIFXb2gJ2aNcMEz9u3P/cdWpecpfzfdzt\nQTfTmT+1QwKBgEcPhBYKhI21kivvvczkpqhb+egV3zgnu80X8JzXREtvPy74RLtR\nS/VVH0jv/n0I9LU9NYGxA3rVsTuoRMOzdVxeXLau0ESrjk6fMYsAmzO9iwccgzL3\n8N+yWM9gGV/SJ90qVoe0tGU9OWnqVoCEPFEhmLuBvzOZPxBp+M/UFQ1lAoGBAKYj\nokZoGRR4lIaujftr03wv/ha5M1KRueG7/eWq+zJbwvSBthtsIAPQg7qVSx6iHtlx\n0Sm+1kqXMdxfu+tABRBEbCmAAaCqCsBSdlxUjQEAr/kQ8LsbYlVtDvmDf//+3THt\nBj53qnpGje7E8aEgoPRpNm3ozptSR8wqA2YmaFULAoGBAIXQ5CE24kOg/hDWceOs\nNv50Chlwgo3Inl3V+/uNRhD5yKhw/zKs3YI47kKj1qIHQRHHFS1g4GTH40n6MhFs\nszneDRkynm4UhFg9z1T81vAisYES8gt/kitQmGjx/ZPWTWbQyNa9EuSTC3JS6mpz\nv9CInTHY342J+dWP28aBaRP3\n-----END PRIVATE KEY-----\n"
+
+
+def get_test_drive_service():
+    try:
+        service_account_info = format_service_account_key(private_key)
+
+        # Create credentials using the formatted info
+        credentials = service_account.Credentials.from_service_account_info(
+            service_account_info,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        )
+
+    except ValueError as e:
+        print(f"Error creating credentials: {e}")
+
+    return credentials
+
+
 if __name__ == "__main__":
-    # get_google_credentials_from_secrets()
-    print_google_credentials()
+    get_test_drive_service()
+    # print_google_credentials()
     # do_load_dotenv()
     # print_google_credentials()
 
