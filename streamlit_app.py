@@ -1,6 +1,7 @@
 import streamlit as st
 from supabase import create_client
 from pathlib import Path
+from src.auth import list_new_folders
 
 
 def show_privacy_policy():
@@ -27,6 +28,9 @@ def show_supabase_management():
 
     users = supabase.table("test").select("*").execute()
     st.write(f"Number of users: {len(users.data)}")
+
+    folders = list_new_folders()
+    st.write(folders)
 
 
 def main():
@@ -55,7 +59,9 @@ def main():
 
     # Navigation sidebar
     st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to", ["Supabase Management", "Privacy Policy", "Terms of Service"])
+    page = st.sidebar.radio(
+        "Go to", ["Supabase Management", "Privacy Policy", "Terms of Service"]
+    )
 
     # Display the selected page
     if page == "Supabase Management":
