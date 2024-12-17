@@ -80,7 +80,7 @@ def print_google_credentials():
 
 
 if __name__ == "__main__":
-    print_google_credentials()
+    list_new_folders()
 
 
 # def get_drive_service():
