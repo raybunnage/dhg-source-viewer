@@ -196,3 +196,4 @@ wheels/
 
 # Streamlit
 .streamlit/
+client_secrets.json
