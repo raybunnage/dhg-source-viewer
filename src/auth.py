@@ -279,7 +279,7 @@ def test_pydrive_service_account():
             print(f"Found {len(file_list)} folders:")
             for file in file_list:
                 folder_info = {"title": file["title"], "id": file["id"]}
-                print(f"- {folder_info['title']} (ID: {folder_info['id']})")
+                # print(f"- {folder_info['title']} (ID: {folder_info['id']})")
                 folders.append(folder_info)
         else:
             print("Authenticated but no folders found.")
