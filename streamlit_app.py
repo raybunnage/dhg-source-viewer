@@ -25,13 +25,13 @@ def show_terms_of_service():
 def show_supabase_management():
     st.title("Supabase Connection Test")
 
-    # api_key = st.secrets["SUPABASE_KEY"]
-    # url_key = st.secrets["SUPABASE_URL"]
+    api_key = st.secrets["SUPABASE_KEY"]
+    url_key = st.secrets["SUPABASE_URL"]
 
-    # supabase = create_client(url_key, api_key)
+    supabase = create_client(url_key, api_key)
 
-    # users = supabase.table("test").select("*").execute()
-    # st.write(f"Number of users: {len(users.data)}")
+    users = supabase.table("test").select("*").execute()
+    st.write(f"Number of users: {len(users.data)}")
 
     # test_pydrive_service_account()
     # test_list_new_folders()
