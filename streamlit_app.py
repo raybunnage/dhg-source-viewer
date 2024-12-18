@@ -2,8 +2,11 @@ import streamlit as st
 from supabase import create_client
 from pathlib import Path
 from google.oauth2 import service_account
-import json
 from googleapiclient.discovery import build
+# from pydrive2.auth import GoogleAuth
+# from pydrive2.drive import GoogleDrive
+# from oauth2client.service_account import ServiceAccountCredentials
+
 
 def show_privacy_policy():
     privacy_policy_path = Path(__file__).parent / "docs" / "privacy-policy.md"
@@ -30,29 +33,120 @@ def show_supabase_management():
     users = supabase.table("test").select("*").execute()
     st.write(f"Number of users: {len(users.data)}")
 
-    
+    # test_pydrive_service_account()
+    test_list_new_folders()
 
 
-def get_google_credentials_from_secrets():
-    google_creds = st.secrets["GOOGLE_CREDENTIALS"]
-    try:
-        service_account_info = json.loads(google_creds)
-        credentials = service_account.Credentials.from_service_account_info(
-            service_account_info, scopes=["https://www.googleapis.com/auth/drive"]
+def test_list_new_folders(parent_folder_id=None):
+    """List all folders in Google Drive or within a specific folder"""
+    service = get_test_drive_service()
+
+    # Query to search for folders
+    query = "mimeType = 'application/vnd.google-apps.folder'"
+    if parent_folder_id:
+        query += f" and '{parent_folder_id}' in parents"
+
+    # Add debugging information
+    st.write(f"Using query: {query}")
+
+    # Get folder list
+    results = (
+        service.files()
+        .list(
+            q=query,
+            fields="files(id, name, webViewLink)",
+            pageSize=10,  # Start with a small number to test
         )
-        return credentials
-    except json.JSONDecodeError:
-        st.error("Invalid JSON in GOOGLE_CREDENTIALS secret")
-        return None
+        .execute()
+    )
 
-def get_drive_service_from_secrets():
-    credentials = get_google_credentials_from_secrets()
-    if credentials:
-        return build("drive", "v3", credentials=credentials)
-    else:
-        st.error("Failed to authenticate with Google Drive")
-        return None
+    # Print raw results for debugging
+    st.write("Raw API response:", results)
 
+    folders = []
+    for file in results.get("files", []):
+        folders.append(
+            {"id": file["id"], "title": file["name"], "link": file["webViewLink"]}
+        )
+
+    return folders
+
+
+def get_test_drive_service():
+    private_key = st.secrets["PRIVATE_KEY"]
+    try:
+        service_account_info = format_service_account_key(private_key)
+
+        # Create credentials using the formatted info
+        credentials = service_account.Credentials.from_service_account_info(
+            service_account_info,
+            scopes=["https://www.googleapis.com/auth/drive"],
+        )
+
+    except ValueError as e:
+        st.error(f"Error creating credentials: {e}")
+
+    return build("drive", "v3", credentials=credentials)
+
+
+# def get_pydrive_test_drive_service():
+#     private_key = st.secrets["PRIVATE_KEY"]
+#     try:
+#         service_account_info = format_service_account_key(private_key)
+
+#         # Create a GoogleAuth instance
+#         gauth = GoogleAuth()
+
+#         # Use service account credentials
+#         gauth.credentials = ServiceAccountCredentials.from_json_keyfile_dict(
+#             service_account_info, scopes=["https://www.googleapis.com/auth/drive"]
+#         )
+
+#         # Create GoogleDrive instance
+#         drive = GoogleDrive(gauth)
+#         return drive
+
+#     except ValueError as e:
+#         print(f"Error creating credentials: {e}")
+#         return None
+
+
+def format_service_account_key(private_key):
+    """
+    Format a service account configuration with proper private key formatting.
+
+    Args:
+        client_id (str): The client ID from Google
+        private_key (str): The private key string from the JSON credentials
+
+    Returns:
+        dict: Properly formatted service account info dictionary
+    """
+    # Ensure the private key has proper newlines
+    formatted_key = private_key.replace("\\n", "\n")
+
+    # Make sure the key has proper BEGIN/END markers if they're missing
+    if not formatted_key.startswith("-----BEGIN PRIVATE KEY-----"):
+        formatted_key = "-----BEGIN PRIVATE KEY-----\n" + formatted_key
+    if not formatted_key.endswith("-----END PRIVATE KEY-----"):
+        formatted_key = formatted_key + "\n-----END PRIVATE KEY-----\n"
+
+    # Create the service account info dictionary
+    service_account_info = {
+        "type": "service_account",
+        "project_id": "fabled-imagery-444902-k1",
+        "private_key": formatted_key,
+        "private_key_id": st.secrets["PRIVATE_KEY_ID"],
+        "client_email": st.secrets["CLIENT_EMAIL"],
+        "client_id": st.secrets["CLIENT_ID"],
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/dhg-drive-helper%40fabled-imagery-444902-k1.iam.gserviceaccount.com",
+        "universe_domain": "googleapis.com",
+    }
+
+    return service_account_info
 
 
 def main():
@@ -63,14 +157,12 @@ def main():
         initial_sidebar_state="expanded",
     )
 
-    get_google_credentials_from_secrets()
     # st.title("Secrets Management")
 
     # st.write("Here are the secrets available in the app:")
 
     # for key, value in st.secrets.items():
     #     st.write(f"{key}: {value}")
-
 
     # Add custom CSS and meta tag
     st.markdown(
