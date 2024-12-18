@@ -140,6 +140,7 @@ def test_pydrive_service_account():
         print(f"Error verifying PyDrive service account association: {e}")
         return False
 
+
 def format_service_account_key(private_key):
     """
     Format a service account configuration with proper private key formatting.
