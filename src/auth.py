@@ -203,9 +203,9 @@ def format_service_account_key(private_key):
         "type": "service_account",
         "project_id": "fabled-imagery-444902-k1",
         "private_key": formatted_key,
-        "private_key_id": "4abf1e79183be159f2a02ebdf2079440cee5b23d",
-        "client_email": "dhg-drive-helper@fabled-imagery-444902-k1.iam.gserviceaccount.com",
-        "client_id": "112125686334929012732",
+        "private_key_id": st.secrets["PRIVATE_KEY_ID"],
+        "client_email": st.secrets["CLIENT_EMAIL"],
+        "client_id": st.secrets["CLIENT_ID"],
         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
         "token_uri": "https://oauth2.googleapis.com/token",
         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
@@ -346,21 +346,9 @@ if __name__ == "__main__":
     # print_google_credentials()
 
 
-# def get_drive_service():
-#     """Initialize and return Google Drive service"""
-#     # Initialize GoogleAuth
-#     gauth = GoogleAuth()
+# load_dotenv()
 
-#     # Use service account credentials
-#     scope = ['https://www.googleapis.com/auth/drive']
-#     gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
-#         'path/to/your/service-account-file.json',
-#         scope
-#     )
-
-#     # Create GoogleDrive instance
-#     drive = GoogleDrive(gauth)
-#     return drive
+# supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 
 # def authenticate_user():
@@ -369,11 +357,6 @@ if __name__ == "__main__":
 #         st.session_state.authenticated = False
 
 #     if not st.session_state.authenticated:
-#         # Add check for Supabase client
-#         if not supabase:
-#             st.error("Unable to connect to authentication service")
-#             return False
-
 #         with st.form("login_form"):
 #             email = st.text_input("Email")
 #             password = st.text_input("Password", type="password")
@@ -394,131 +377,17 @@ if __name__ == "__main__":
 #     return True
 
 
-# # Approach 1: Using JSON file (good for local development)
-# def get_drive_service_from_file():
-#     # Create credentials using service_account
-#     credentials = service_account.Credentials.from_service_account_file(
-#         "client_secrets.json", scopes=["https://www.googleapis.com/auth/drive"]
-#     )
+# def get_root_folder():
+#     drive = get_pydrive_test_drive_service()
+#     if not drive:
+#         print("Failed to get drive service")
+#         return None
 
-#     # Initialize GoogleAuth
-#     gauth = GoogleAuth()
-#     # Set credentials directly
-#     gauth.credentials = credentials
+#     # Get the root folder by querying for 'root' in parents
+#     root_folder = drive.ListFile({"q": "'root' in parents"}).GetList()
 
-#     # Create and return GoogleDrive instance with auth
-#     drive = GoogleDrive(gauth)
-#     return drive
+#     # Print contents for debugging
+#     for file in root_folder:
+#         print(f"Found: {file['title']} (ID: {file['id']}, Type: {file['mimeType']})")
 
-
-# def print_folders():
-#     folders = list_folders()
-#     for folder in folders:
-#         print(f"Folder: {folder['title']}, ID: {folder['id']}")
-
-
-# def list_folders(parent_folder_id=None):
-#     """List all folders in Google Drive or within a specific folder"""
-#     drive = get_drive_service_from_file()
-
-#     # Query to search for folders
-#     query = "mimeType = 'application/vnd.google-apps.folder'"
-#     if parent_folder_id:
-#         query += f" and '{parent_folder_id}' in parents"
-
-#     # Get folder list
-#     file_list = drive.ListFile({"q": query}).GetList()
-
-#     folders = []
-#     for file in file_list:
-#         folders.append(
-#             {"id": file["id"], "title": file["title"], "link": file["alternateLink"]}
-#         )
-
-#     return folders
-
-
-# # Approach 2: Using environment variable (good for deployment)
-# def get_credentials_from_env():
-#     google_creds = os.getenv("GOOGLE_CREDENTIALS")
-#     if not google_creds:
-#         raise ValueError("GOOGLE_CREDENTIALS environment variable is not set")
-
-#     try:
-#         service_account_info = json.loads(google_creds)
-#         credentials = service_account.Credentials.from_service_account_info(
-#             service_account_info, scopes=["https://www.googleapis.com/auth/drive"]
-#         )
-#         return credentials
-#     except json.JSONDecodeError:
-#         raise ValueError(
-#             "GOOGLE_CREDENTIALS environment variable contains invalid JSON"
-#         )
-
-
-# def get_google_credentials():
-#     """Create Google service account credentials"""
-#     credentials = service_account.Credentials.from_service_account_file(
-#         'path/to/your/service-account-file.json',
-#         scopes=['https://www.googleapis.com/auth/spreadsheets',  # adjust scopes based on your needs
-#                 'https://www.googleapis.com/auth/drive']
-#     )
-#     return credentials
-
-
-# def get_google_credentials2():
-#     """Create Google service account credentials from environment variable"""
-#     service_account_info = json.loads(os.getenv('GOOGLE_CREDENTIALS'))
-#     credentials = service_account.Credentials.from_service_account_info(
-#         service_account_info,
-#         scopes=['https://www.googleapis.com/auth/spreadsheets',
-#                 'https://www.googleapis.com/auth/drive']
-#     )
-#     return credentials
-
-
-# load_dotenv()
-
-# supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-
-
-def authenticate_user():
-    """Handle user authentication"""
-    if "authenticated" not in st.session_state:
-        st.session_state.authenticated = False
-
-    if not st.session_state.authenticated:
-        with st.form("login_form"):
-            email = st.text_input("Email")
-            password = st.text_input("Password", type="password")
-            submit = st.form_submit_button("Login")
-
-            if submit:
-                try:
-                    response = supabase.auth.sign_in_with_password(
-                        {"email": email, "password": password}
-                    )
-                    st.session_state.authenticated = True
-                    st.session_state.user = response.user
-                    return True
-                except Exception as e:
-                    st.error("Invalid credentials")
-                    return False
-        return False
-    return True
-
-
-def get_root_folder():
-    drive = get_pydrive_test_drive_service()
-    if not drive:
-        print("Failed to get drive service")
-        return None
-
-    # Get the root folder by querying for 'root' in parents
-    root_folder = drive.ListFile({"q": "'root' in parents"}).GetList()
-
-    # Print contents for debugging
-    for file in root_folder:
-        print(f"Found: {file['title']} (ID: {file['id']}, Type: {file['mimeType']})")
-
-    return root_folder
+#     return root_folder
