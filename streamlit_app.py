@@ -6,7 +6,7 @@ from googleapiclient.discovery import build
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
 from oauth2client.service_account import ServiceAccountCredentials
-from src.auth import test_pydrive_service_account
+from src.auth import test_pydrive_service_account, get_pydrive_test_drive_service
 
 
 def show_privacy_policy():
@@ -34,12 +34,44 @@ def show_supabase_management():
     users = supabase.table("test").select("*").execute()
     st.write(f"Number of users: {len(users.data)}")
 
-    folders = test_pydrive_service_account()
-    st.write(f"Number of folders: {len(folders)}")
+    # folders = test_pydrive_service_account()
+    # st.write(f"Number of folders: {len(folders)}")
 
-    # Write out up to 10 folders
-    for i, folder in enumerate(folders[:10]):
-        st.write(folder["title"], folder["id"])
+    # # Write out up to 10 folders
+    # for i, folder in enumerate(folders[:10]):
+    #     st.write(folder["title"], folder["id"])
+
+    show_first_mp4_video()
+
+
+def show_first_mp4_video():
+    drive = get_pydrive_test_drive_service()
+    if not drive:
+        st.error("Failed to authenticate with PyDrive")
+        return
+
+    try:
+        # Query to search for mp4 files
+        file_list = drive.ListFile({"q": "mimeType='video/mp4'"}).GetList()
+
+        if file_list:
+            first_mp4 = file_list[0]
+            st.write(f"Title: {first_mp4['title']}")
+            
+            # Get the file ID and create a direct streaming link
+            file_id = first_mp4['id']
+            stream_link = f"https://drive.google.com/file/d/{file_id}/preview"
+            
+            # Display using st.markdown with iframe
+            st.markdown(f'<iframe src="{stream_link}" width="640" height="360"></iframe>', unsafe_allow_html=True)
+        else:
+            st.write("No mp4 files found.")
+
+    except Exception as e:
+        st.error(f"Error retrieving mp4 files: {e}")
+
+
+# Call the function to display the first mp4 video
 
 
 def test_list_new_folders(parent_folder_id=None):
