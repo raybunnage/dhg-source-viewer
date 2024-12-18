@@ -266,16 +266,21 @@ def test_pydrive_service_account():
         return False
 
     try:
-        # Attempt to list files in the root directory to verify access
+        # Update the query to match the working Google API query
         file_list = drive.ListFile(
-            {"q": "mimeType='application/vnd.google-apps.folder' and 'root' in parents"}
+            {
+                "q": "mimeType='application/vnd.google-apps.folder'"  # Remove the 'root' in parents restriction
+            }
         ).GetList()
 
         if file_list:
             print("Successfully authenticated with PyDrive using the service account.")
+            print(f"Found {len(file_list)} folders:")
+            for file in file_list:
+                print(f"- {file['title']} (ID: {file['id']})")
             return True
         else:
-            print("Authenticated but no folders found in the root directory.")
+            print("Authenticated but no folders found.")
             return True
 
     except Exception as e:
@@ -501,3 +506,19 @@ def authenticate_user():
                     return False
         return False
     return True
+
+
+def get_root_folder():
+    drive = get_pydrive_test_drive_service()
+    if not drive:
+        print("Failed to get drive service")
+        return None
+
+    # Get the root folder by querying for 'root' in parents
+    root_folder = drive.ListFile({"q": "'root' in parents"}).GetList()
+
+    # Print contents for debugging
+    for file in root_folder:
+        print(f"Found: {file['title']} (ID: {file['id']}, Type: {file['mimeType']})")
+
+    return root_folder
