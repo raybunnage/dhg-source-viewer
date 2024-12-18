@@ -343,7 +343,8 @@ def test_list_new_folders(parent_folder_id=None):
 
 
 if __name__ == "__main__":
-    test_pydrive_service_account()
+    folders = test_pydrive_service_account()
+    print(folders)
     # test_list_new_folders()
     # print_google_credentials()
     # do_load_dotenv()

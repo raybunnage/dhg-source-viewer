@@ -39,9 +39,7 @@ def show_supabase_management():
 
     # Write out up to 10 folders
     for i, folder in enumerate(folders[:10]):
-        st.write(
-            f"{i+1}. ID: {folder['id']}, Title: {folder['title']}, Link: {folder['link']}"
-        )
+        st.write(folder["title"], folder["id"])
 
 
 def test_list_new_folders(parent_folder_id=None):
