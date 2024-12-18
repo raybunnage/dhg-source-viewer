@@ -6,8 +6,9 @@ from google.oauth2 import service_account
 import json
 from googleapiclient.discovery import build
 
-# from pydrive2.auth import GoogleAuth
-# from pydrive2.drive import GoogleDrive
+from pydrive2.auth import GoogleAuth
+from pydrive2.drive import GoogleDrive
+from oauth2client.service_account import ServiceAccountCredentials
 
 
 # # Improve error handling for dotenv and environment variables
@@ -226,17 +227,115 @@ def get_test_drive_service():
         # Create credentials using the formatted info
         credentials = service_account.Credentials.from_service_account_info(
             service_account_info,
-            scopes=["https://www.googleapis.com/auth/cloud-platform"],
+            scopes=["https://www.googleapis.com/auth/drive"],
         )
 
     except ValueError as e:
         print(f"Error creating credentials: {e}")
 
-    return credentials
+    return build("drive", "v3", credentials=credentials)
+
+
+def get_pydrive_test_drive_service():
+    private_key = st.secrets["PRIVATE_KEY"]
+    try:
+        service_account_info = format_service_account_key(private_key)
+
+        # Create a GoogleAuth instance
+        gauth = GoogleAuth()
+
+        # Use service account credentials
+        gauth.credentials = ServiceAccountCredentials.from_json_keyfile_dict(
+            service_account_info, scopes=["https://www.googleapis.com/auth/drive"]
+        )
+
+        # Create GoogleDrive instance
+        drive = GoogleDrive(gauth)
+        return drive
+
+    except ValueError as e:
+        print(f"Error creating credentials: {e}")
+        return None
+
+
+def test_pydrive_service_account():
+    """Test if PyDrive2 is associated with the service account"""
+    drive = get_pydrive_test_drive_service()
+    if not drive:
+        print("Failed to authenticate with PyDrive")
+        return False
+
+    try:
+        # Attempt to list files in the root directory to verify access
+        file_list = drive.ListFile(
+            {"q": "mimeType='application/vnd.google-apps.folder' and 'root' in parents"}
+        ).GetList()
+
+        if file_list:
+            print("Successfully authenticated with PyDrive using the service account.")
+            return True
+        else:
+            print("Authenticated but no folders found in the root directory.")
+            return True
+
+    except Exception as e:
+        print(f"Error verifying PyDrive service account association: {e}")
+        return False
+
+
+def test_drive_and_folders():
+    """Test the list_new_folders function"""
+    try:
+        folders = test_list_new_folders()
+        if not folders:
+            print("No folders found.")
+        else:
+            print("Folders found:")
+            for folder in folders:
+                print(
+                    f"ID: {folder['id']}, Title: {folder['title']}, Link: {folder['link']}"
+                )
+    except Exception as e:
+        print(f"Error during test: {e}")
+
+
+def test_list_new_folders(parent_folder_id=None):
+    """List all folders in Google Drive or within a specific folder"""
+    service = get_test_drive_service()
+
+    # Query to search for folders
+    query = "mimeType = 'application/vnd.google-apps.folder'"
+    if parent_folder_id:
+        query += f" and '{parent_folder_id}' in parents"
+
+    # Add debugging information
+    print(f"Using query: {query}")
+
+    # Get folder list
+    results = (
+        service.files()
+        .list(
+            q=query,
+            fields="files(id, name, webViewLink)",
+            pageSize=10,  # Start with a small number to test
+        )
+        .execute()
+    )
+
+    # Print raw results for debugging
+    print("Raw API response:", results)
+
+    folders = []
+    for file in results.get("files", []):
+        folders.append(
+            {"id": file["id"], "title": file["name"], "link": file["webViewLink"]}
+        )
+
+    return folders
 
 
 if __name__ == "__main__":
-    get_test_drive_service()
+    test_pydrive_service_account()
     # print_google_credentials()
     # do_load_dotenv()
     # print_google_credentials()
