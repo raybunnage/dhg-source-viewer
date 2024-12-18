@@ -259,11 +259,11 @@ def get_pydrive_test_drive_service():
 
 
 def test_pydrive_service_account():
-    """Test if PyDrive2 is associated with the service account"""
+    """Test if PyDrive2 is associated with the service account and return a list of folders"""
     drive = get_pydrive_test_drive_service()
     if not drive:
         print("Failed to authenticate with PyDrive")
-        return False
+        return []
 
     try:
         # Update the query to match the working Google API query
@@ -273,19 +273,22 @@ def test_pydrive_service_account():
             }
         ).GetList()
 
+        folders = []
         if file_list:
             print("Successfully authenticated with PyDrive using the service account.")
             print(f"Found {len(file_list)} folders:")
             for file in file_list:
-                print(f"- {file['title']} (ID: {file['id']})")
-            return True
+                folder_info = {"title": file["title"], "id": file["id"]}
+                print(f"- {folder_info['title']} (ID: {folder_info['id']})")
+                folders.append(folder_info)
         else:
             print("Authenticated but no folders found.")
-            return True
+
+        return folders
 
     except Exception as e:
         print(f"Error verifying PyDrive service account association: {e}")
-        return False
+        return []
 
 
 def test_drive_and_folders():

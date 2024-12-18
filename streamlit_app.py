@@ -34,7 +34,9 @@ def show_supabase_management():
     users = supabase.table("test").select("*").execute()
     st.write(f"Number of users: {len(users.data)}")
 
-    test_pydrive_service_account()
+    folders = test_pydrive_service_account()
+    st.write(f"Number of folders: {len(folders)}")
+    st.write(folders)
     # test_list_new_folders()
 
 
