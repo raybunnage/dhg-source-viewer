@@ -34,7 +34,7 @@ def show_supabase_management():
     st.write(f"Number of users: {len(users.data)}")
 
     # test_pydrive_service_account()
-    test_list_new_folders()
+    # test_list_new_folders()
 
 
 def test_list_new_folders(parent_folder_id=None):
