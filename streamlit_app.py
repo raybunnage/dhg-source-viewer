@@ -57,13 +57,18 @@ def show_first_mp4_video():
         if file_list:
             first_mp4 = file_list[0]
             st.write(f"Title: {first_mp4['title']}")
-            
+
             # Get the file ID and create a direct streaming link
-            file_id = first_mp4['id']
+            file_id = first_mp4["id"]
             stream_link = f"https://drive.google.com/file/d/{file_id}/preview"
-            
+
             # Display using st.markdown with iframe
-            st.markdown(f'<iframe src="{stream_link}" width="640" height="360"></iframe>', unsafe_allow_html=True)
+            st.markdown(
+                f'<iframe src="{stream_link}" width="1000" height="500"></iframe>',
+                unsafe_allow_html=True,
+            )
+            640 / 360
+            1000 / 500
         else:
             st.write("No mp4 files found.")
 
