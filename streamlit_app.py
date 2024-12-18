@@ -36,8 +36,12 @@ def show_supabase_management():
 
     folders = test_pydrive_service_account()
     st.write(f"Number of folders: {len(folders)}")
-    # st.write(folders)
-    # test_list_new_folders()
+
+    # Write out up to 10 folders
+    for i, folder in enumerate(folders[:10]):
+        st.write(
+            f"{i+1}. ID: {folder['id']}, Title: {folder['title']}, Link: {folder['link']}"
+        )
 
 
 def test_list_new_folders(parent_folder_id=None):
