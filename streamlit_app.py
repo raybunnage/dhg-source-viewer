@@ -3,9 +3,9 @@ from supabase import create_client
 from pathlib import Path
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-# from pydrive2.auth import GoogleAuth
-# from pydrive2.drive import GoogleDrive
-# from oauth2client.service_account import ServiceAccountCredentials
+from pydrive2.auth import GoogleAuth
+from pydrive2.drive import GoogleDrive
+from oauth2client.service_account import ServiceAccountCredentials
 
 
 def show_privacy_policy():
@@ -33,8 +33,8 @@ def show_supabase_management():
     users = supabase.table("test").select("*").execute()
     st.write(f"Number of users: {len(users.data)}")
 
-    # test_pydrive_service_account()
-    test_list_new_folders()
+    test_pydrive_service_account()
+    # test_list_new_folders()
 
 
 def test_list_new_folders(parent_folder_id=None):
@@ -89,27 +89,56 @@ def get_test_drive_service():
     return build("drive", "v3", credentials=credentials)
 
 
-# def get_pydrive_test_drive_service():
-#     private_key = st.secrets["PRIVATE_KEY"]
-#     try:
-#         service_account_info = format_service_account_key(private_key)
+def get_pydrive_test_drive_service():
+    private_key = st.secrets["PRIVATE_KEY"]
+    try:
+        service_account_info = format_service_account_key(private_key)
 
-#         # Create a GoogleAuth instance
-#         gauth = GoogleAuth()
+        # Create a GoogleAuth instance
+        gauth = GoogleAuth()
 
-#         # Use service account credentials
-#         gauth.credentials = ServiceAccountCredentials.from_json_keyfile_dict(
-#             service_account_info, scopes=["https://www.googleapis.com/auth/drive"]
-#         )
+        # Use service account credentials
+        gauth.credentials = ServiceAccountCredentials.from_json_keyfile_dict(
+            service_account_info, scopes=["https://www.googleapis.com/auth/drive"]
+        )
 
-#         # Create GoogleDrive instance
-#         drive = GoogleDrive(gauth)
-#         return drive
+        # Create GoogleDrive instance
+        drive = GoogleDrive(gauth)
+        return drive
 
-#     except ValueError as e:
-#         print(f"Error creating credentials: {e}")
-#         return None
+    except ValueError as e:
+        print(f"Error creating credentials: {e}")
+        return None
 
+
+def test_pydrive_service_account():
+    """Test if PyDrive2 is associated with the service account"""
+    drive = get_pydrive_test_drive_service()
+    if not drive:
+        print("Failed to authenticate with PyDrive")
+        return False
+
+    try:
+        # Update the query to match the working Google API query
+        file_list = drive.ListFile(
+            {
+                "q": "mimeType='application/vnd.google-apps.folder'"  # Remove the 'root' in parents restriction
+            }
+        ).GetList()
+
+        if file_list:
+            print("Successfully authenticated with PyDrive using the service account.")
+            print(f"Found {len(file_list)} folders:")
+            for file in file_list:
+                print(f"- {file['title']} (ID: {file['id']})")
+            return True
+        else:
+            print("Authenticated but no folders found.")
+            return True
+
+    except Exception as e:
+        print(f"Error verifying PyDrive service account association: {e}")
+        return False
 
 def format_service_account_key(private_key):
     """
