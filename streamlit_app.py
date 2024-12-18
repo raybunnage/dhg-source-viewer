@@ -64,11 +64,11 @@ def show_first_mp4_video():
 
             # Display using st.markdown with iframe
             st.markdown(
-                f'<iframe src="{stream_link}" width="1000" height="500"></iframe>',
+                f'<iframe src="{stream_link}" width="640" height="360"></iframe>',
                 unsafe_allow_html=True,
             )
-            640 / 360
-            1000 / 500
+            # 640 / 360
+            # 1000 / 500
         else:
             st.write("No mp4 files found.")
 
