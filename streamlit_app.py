@@ -36,7 +36,7 @@ def show_supabase_management():
 
     folders = test_pydrive_service_account()
     st.write(f"Number of folders: {len(folders)}")
-    st.write(folders)
+    # st.write(folders)
     # test_list_new_folders()
 
 
