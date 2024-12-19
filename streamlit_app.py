@@ -37,6 +37,7 @@ def show_supabase_management():
 
 
 def show_anthropic_test():
+    st.subheader("Anthropic Test")
     api_key = st.secrets["ANTHROPIC_API_KEY"]
     claude = AnthropicService(api_key)
     claude.test_anthropic()
