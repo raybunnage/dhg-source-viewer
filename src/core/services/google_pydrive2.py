@@ -84,6 +84,23 @@ class GooglePyDrive2:
             return []  # Return empty list instead of True
 
 
+    def ListFile(self):
+        if self.drive is None:
+            raise Exception("Google Drive client not initialized properly")
+
+        try:
+            # Query to search for mp4 files
+            file_list = self.drive.ListFile({"q": "mimeType='video/mp4'"}).GetList()
+
+            if file_list:
+                return file_list
+            else:
+                print("No mp4 files found.")
+
+        except Exception as e:
+            print(f"Error retrieving mp4 files: {e}")
+
+
 def main():
     load_dotenv()
     private_key = os.getenv("PRIVATE_KEY")

@@ -21,41 +21,52 @@ def show_terms_of_service():
 def show_supabase_management():
     st.title("Supabase Connection Test")
 
-    # Initialize SupabaseClient
-    api_key = st.secrets["SUPABASE_KEY"]
     url_key = st.secrets["SUPABASE_URL"]
+    api_key = st.secrets["SUPABASE_KEY"]
     supabase_client = SupabaseService(url_key, api_key)
     supabase_client.initialize_client()
     users = supabase_client.get_test_users()
-    st.write(f"Number of users: {len(users)}")
+    # st.write(users)
+    # Convert the APIResponse to a list or dict before using len()
+    users_data = users.data if hasattr(users, "data") else []
+    st.write(f"Number of users: {len(users_data)}")
 
     show_first_mp4_video()
 
 
 def show_first_mp4_video():
-    # Initialize GooglePyDrive2
-    drive_client = GooglePyDrive2()
+    private_key = st.secrets["PRIVATE_KEY"]
+    private_key_id = st.secrets["PRIVATE_KEY_ID"]
+    client_email = st.secrets["CLIENT_EMAIL"]
+    client_id = st.secrets["CLIENT_ID"]
+    drive = GooglePyDrive2(private_key, private_key_id, client_email, client_id)
+    if not drive:
+        st.error("Failed to authenticate with PyDrive")
+        return
 
     try:
-        file_list = drive_client.list_files(mime_type="video/mp4")
+        # Query to search for mp4 files
+        file_list = drive.ListFile()
 
         if file_list:
             first_mp4 = file_list[0]
             st.write(f"Title: {first_mp4['title']}")
 
+            # Get the file ID and create a direct streaming link
             file_id = first_mp4["id"]
             stream_link = f"https://drive.google.com/file/d/{file_id}/preview"
 
+            # Display using st.markdown with iframe
             st.markdown(
                 f'<iframe src="{stream_link}" width="640" height="360"></iframe>',
                 unsafe_allow_html=True,
             )
         else:
             st.write("No mp4 files found.")
-
     except Exception as e:
         st.error(f"Error retrieving mp4 files: {e}")
-
+    finally:
+        st.write("Finished processing mp4 files.")
 
 def main():
     st.set_page_config(
@@ -64,13 +75,6 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded",
     )
-
-    # st.title("Secrets Management")
-
-    # st.write("Here are the secrets available in the app:")
-
-    # for key, value in st.secrets.items():
-    #     st.write(f"{key}: {value}")
 
     # Add custom CSS and meta tag
     st.markdown(
