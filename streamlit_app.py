@@ -2,6 +2,7 @@ import streamlit as st
 from pathlib import Path
 from src.core.services.google_pydrive2 import GooglePyDrive2
 from src.core.services.supabase_client import SupabaseService
+from src.core.services.support_claude import AnthropicService
 
 
 def show_privacy_policy():
@@ -19,7 +20,7 @@ def show_terms_of_service():
 
 
 def show_supabase_management():
-    st.title("Supabase Connection Test")
+    st.title("Supabase Drive Anthropic Test")
 
     url_key = st.secrets["SUPABASE_URL"]
     api_key = st.secrets["SUPABASE_KEY"]
@@ -31,7 +32,14 @@ def show_supabase_management():
     users_data = users.data if hasattr(users, "data") else []
     st.write(f"Number of users: {len(users_data)}")
 
-    show_first_mp4_video()
+    # show_first_mp4_video()
+    show_anthropic_test()
+
+
+def show_anthropic_test():
+    api_key = st.secrets["ANTHROPIC_API_KEY"]
+    claude = AnthropicService(api_key)
+    claude.test_anthropic()
 
 
 def show_first_mp4_video():
@@ -67,6 +75,7 @@ def show_first_mp4_video():
         st.error(f"Error retrieving mp4 files: {e}")
     finally:
         st.write("Finished processing mp4 files.")
+
 
 def main():
     st.set_page_config(
@@ -121,4 +130,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-# streamlit run /Users/raybunnage/Documents/github/dhg-source-viewer/streamlit_app.py
+# streamlit run streamlit_app.py
