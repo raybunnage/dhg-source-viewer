@@ -32,7 +32,7 @@ def show_supabase_management():
     users_data = users.data if hasattr(users, "data") else []
     st.write(f"Number of users: {len(users_data)}")
 
-    # show_first_mp4_video()
+    show_first_mp4_video()
     show_anthropic_test()
 
 
