@@ -17,3 +17,9 @@ def show_first_mp4_video():
         )
     else:
         st.write("No mp4 files found.") 
+
+
+if __name__ == "__main__":
+    show_first_mp4_video()
+
+# run streamlit src/apps/app1/components/drive_viewer.py
