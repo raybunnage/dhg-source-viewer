@@ -33,13 +33,15 @@ def show_supabase_management():
     st.write(f"Number of users: {len(users_data)}")
 
     # show_first_mp4_video()
-    show_anthropic_test()
+    response_basic, response_complex, response_follow_up = show_anthropic_test()
+    st.write(response_basic)
+    st.write(response_complex)
+    st.write(response_follow_up)
 
 
 def show_anthropic_test():
     st.subheader("Anthropic Test")
     api_key = st.secrets["ANTHROPIC_API_KEY"]
-    st.write(api_key)
     claude = AnthropicService(api_key)
     claude.test_anthropic()
 

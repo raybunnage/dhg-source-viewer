@@ -149,16 +149,14 @@ class AnthropicService:
         )
         return response.content[0].text if response.content else None
 
-    # ... existing code ...
     def test_anthropic(self):
-
         # Test basic call
-        response = self.call_claude_basic(
+        response_basic = self.call_claude_basic(
             max_tokens=1000,
             input_string="Hello!",
             system_string="You are a helpful assistant",
         )
-        print("Basic Call Response:", response)
+        print("Basic Call Response:", response_basic)
 
         # Test complex call with multiple messages
         messages = [
@@ -166,24 +164,26 @@ class AnthropicService:
             {"role": "assistant", "content": "Why did the chicken cross the road?"},
             {"role": "user", "content": "I don't know, why?"},
         ]
-        response = self.call_claude_messages(
-            max_tokens=1000, messages=messages, system_string="You are a helpful assistant"
+        response_complex = self.call_claude_messages(
+            max_tokens=1000,
+            messages=messages,
+            system_string="You are a helpful assistant",
         )
-        print("Complex Call Response:", response)
+        print("Complex Call Response:", response_complex)
 
         # Test follow-up call
-        response = self.call_claude_follow_up(
+        response_follow_up = self.call_claude_follow_up(
             max_tokens=1000,
             input_string="Tell me a joke.",
             follow_up_message="Why did the chicken cross the road?",
             system_string="You are a snarky know it all assistant",
         )
-        print("Follow-up Call Response:", response)
+        print("Follow-up Call Response:", response_follow_up)
 
-
+        return response_basic, response_complex, response_follow_up
 
 
 if __name__ == "__main__":
-    api_key=os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     anthropic = AnthropicService(api_key)
     anthropic.test_anthropic()
