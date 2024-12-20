@@ -4,31 +4,24 @@ from dotenv import load_dotenv
 
 
 class SupabaseService:
-    def __init__(self, url, key):
+    def __init__(self, url, api_key):
         self.url = url
-        self.key = key
+        self.api_key = api_key
         self.client = None
 
     def initialize_client(self):
-        """Initialize Supabase client."""
-        try:
-            self.client = create_client(self.url, self.key)
-            return True
-        except Exception as e:
-            print(f"Error initializing Supabase client: {e}")
-            return False
-
+        self.client = create_client(self.url, self.api_key)
+        
     def get_test_users(self):
-        """Get test users from Supabase."""
-        if not self.client:
-            print("Client not initialized")
-            return None
-
-        try:
-            return self.client.table("test").select("*").execute()
-        except Exception as e:
-            print(f"Error fetching users: {e}")
-            return None
+        # Get the session from the client
+        session = self.client.auth.get_session()
+        
+        # Include the session token in the request
+        return self.client.table('test_users').select("*").execute(
+            headers={
+                'Authorization': f'Bearer {session.access_token}'
+            }
+        )
 
 
 def main():
@@ -37,7 +30,7 @@ def main():
     load_dotenv()
 
     supabase = SupabaseService(
-        url=os.getenv("SUPABASE_URL"), key=os.getenv("SUPABASE_KEY")
+        url=os.getenv("SUPABASE_URL"), api_key=os.getenv("SUPABASE_KEY")
     )
 
     if supabase.initialize_client():
