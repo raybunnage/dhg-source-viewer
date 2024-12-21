@@ -12,30 +12,45 @@ def test_supabase_connection():
     # Initialize SupabaseTest instance
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
-    st.write(f"URL: {url}, Key: {key}")
+    # st.write(f"URL: {url}, Key: {key}")
 
     if "supabase" not in st.session_state or st.session_state.supabase is None:
         st.session_state.supabase = SupabaseService(url, key)
 
     # Login Section
-    st.header("Login Test")
-    email = st.secrets["TEST_EMAIL"]
-    password = st.secrets["TEST_PASSWORD"]
-    st.write(f"Email: {email}, Password: {password}")
+    st.header("Login")
 
-    if st.button("Login"):
-        try:
-            st.write("Attempting login...")
-            auth_response = st.session_state.supabase.login(email, password)
+    # Only show the login form if not authenticated
+    if not st.session_state.authenticated:
+        # Create login form
+        with st.form("login_form"):
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            submit_button = st.form_submit_button("Login")
 
-            if auth_response and auth_response.user:
-                st.session_state.auth_session = auth_response
-                st.session_state.authenticated = True  # Set authenticated to True
-                st.success("Login successful!")
-            else:
-                st.error("Login failed: Invalid credentials or no user data received")
-        except Exception as e:
-            st.error(f"Login failed: {str(e)}")
+            if submit_button:
+                if not email or not password:
+                    st.error("Please enter both email and password")
+                else:
+                    try:
+                        st.write("Attempting login...")
+                        auth_response = st.session_state.supabase.login(email, password)
+
+                        if auth_response and auth_response.user:
+                            st.session_state.auth_session = auth_response
+                            st.session_state.authenticated = True
+                            st.success(
+                                f"Login successful! Welcome, {auth_response.user.email}"
+                            )
+                            st.rerun()  # Rerun to update the UI
+                        else:
+                            st.error("Login failed: Invalid credentials")
+                    except Exception as e:
+                        st.error(f"Login failed: {str(e)}")
+
+    # Show login status
+    if st.session_state.authenticated:
+        st.info("You are currently logged in")
 
     # Update Name Section
     st.header("Update Name Test")
@@ -94,6 +109,7 @@ def test_supabase_connection():
         if "auth_session" in st.session_state:
             del st.session_state.auth_session
         st.success("Logged out successfully!")
+        st.rerun()  # Rerun to update the UI and show the login form again
 
 
 if __name__ == "__main__":

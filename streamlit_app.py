@@ -1,14 +1,8 @@
-import sys
-import os
-import asyncio
-
-
 import streamlit as st
 from pathlib import Path
-from src.core.services.google_pydrive2 import GooglePyDrive2
-from src.core.services.supabase_client import SupabaseService
-from src.core.services.support_claude import AnthropicService
-from src.core.services.supabase_auth import SupabaseAuth
+from src.services.google_pydrive2 import GooglePyDrive2
+from src.services.supabase_service import SupabaseService
+from src.services.support_claude import AnthropicService
 
 
 def show_privacy_policy():
@@ -31,15 +25,14 @@ def show_supabase_management():
     url_key = st.secrets["SUPABASE_URL"]
     api_key = st.secrets["SUPABASE_KEY"]
     supabase_client = SupabaseService(url_key, api_key)
-    supabase_client.initialize_client()
     users = supabase_client.get_test_users()
     # st.write(users)
     # Convert the APIResponse to a list or dict before using len()
     users_data = users.data if hasattr(users, "data") else []
     st.write(f"Number of users: {len(users_data)}")
 
-    # show_first_mp4_video()
-    # show_anthropic_test()
+    show_first_mp4_video()
+    show_anthropic_test()
     show_supabase_auth()
 
 
@@ -50,26 +43,30 @@ def show_supabase_auth():
     supabase_key = st.secrets["SUPABASE_KEY"]
 
     supabase = SupabaseService(supabase_url, supabase_key)
-    supabase.initialize_client()
-    auth = SupabaseAuth(supabase.client)
 
     # Create signup form
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
-    
+
     if st.button("Sign Up"):
         if email and password:
             # Handle signup directly without async/await
             with st.spinner("Signing up..."):
-                response = auth.sign_up_with_email(email, password)
-                
-                if response.success:
-                    if response.needs_email_confirmation:
-                        st.success("Please check your email for confirmation link")
-                    else:
-                        st.success("Successfully signed up!")
-                else:
-                    st.error(f"Signup failed: {response.error}")
+                auth_response = supabase.login(email, password)
+                st.write(auth_response)
+                # if auth_response:
+                #     st.session_state.auth_session = auth_response
+                #     st.session_state.authenticated = True
+                st.success(f"Login successful! Welcome, {auth_response.user.email}")
+                st.rerun()  # Rerun to update the UI
+
+                # if response.success:
+                #     if response.needs_email_confirmation:
+                #         st.success("Please check your email for confirmation link")
+                #     else:
+                #         st.success("Successfully signed up!")
+                # else:
+                #     st.error(f"Signup failed: {response.error}")
         else:
             st.error("Please enter both email and password")
 
