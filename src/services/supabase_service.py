@@ -56,7 +56,9 @@ class SupabaseService:
             self.email = email
             self.password = password
             print(f"Attempting login with email: {email}")
-            data = self.supabase.auth.login({"email": email, "password": password})
+            data = self.supabase.auth.sign_in_with_password(
+                {"email": email, "password": password}
+            )
             print(f"Auth response data: {data}")
             print(f"User data: {data.user if data else 'No data'}")
             self.session = data

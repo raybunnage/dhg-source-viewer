@@ -24,15 +24,24 @@ def show_supabase_management():
 
     url_key = st.secrets["SUPABASE_URL"]
     api_key = st.secrets["SUPABASE_KEY"]
+    test_email = st.secrets["TEST_EMAIL"]
+    test_password = st.secrets["TEST_PASSWORD"]
+    # st.write(test_email)
+    # st.write(test_password)
     supabase_client = SupabaseService(url_key, api_key)
+    supabase_client.login(test_email, test_password)
     users = supabase_client.get_test_users()
+    todos = supabase_client.get_todos()
+    todos_data = todos.data if hasattr(todos, "data") else []
+    st.write(f"Number of todos: {len(todos_data)}")
+
     # st.write(users)
     # Convert the APIResponse to a list or dict before using len()
     users_data = users.data if hasattr(users, "data") else []
     st.write(f"Number of users: {len(users_data)}")
 
-    show_first_mp4_video()
-    show_anthropic_test()
+    # show_first_mp4_video()
+    # show_anthropic_test()
     show_supabase_auth()
 
 
