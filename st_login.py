@@ -1,18 +1,21 @@
 import streamlit as st
-import os
-from src.core.services.supabase_class_auth import SupabaseTest
+from src.services.supabase_service import SupabaseService
 
 
 def test_supabase_connection():
     st.title("Supabase Connection Test")
+
+    # Initialize session state variables if they don't exist
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
 
     # Initialize SupabaseTest instance
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
     st.write(f"URL: {url}, Key: {key}")
 
-    if "supabase" not in st.session_state:
-        st.session_state.supabase = SupabaseTest(url, key)
+    if "supabase" not in st.session_state or st.session_state.supabase is None:
+        st.session_state.supabase = SupabaseService(url, key)
 
     # Login Section
     st.header("Login Test")
@@ -23,29 +26,16 @@ def test_supabase_connection():
     if st.button("Login"):
         try:
             st.write("Attempting login...")
-            st.write(f"Using URL: {url}")  # Debug line (will be hidden in production)
             auth_response = st.session_state.supabase.login(email, password)
-
-            st.write("Auth response type:", type(auth_response))  # Debug line
-            st.write("Raw auth response:", auth_response)  # Debug line
-
-            if auth_response:
-                st.write("Has auth response")  # Debug line
-                st.write(
-                    "User data:", getattr(auth_response, "user", None)
-                )  # Debug line
 
             if auth_response and auth_response.user:
                 st.session_state.auth_session = auth_response
+                st.session_state.authenticated = True  # Set authenticated to True
                 st.success("Login successful!")
             else:
                 st.error("Login failed: Invalid credentials or no user data received")
-                st.write(
-                    "Please check your SUPABASE_URL, SUPABASE_KEY, TEST_EMAIL, and TEST_PASSWORD in your secrets"
-                )
         except Exception as e:
             st.error(f"Login failed: {str(e)}")
-            st.write("Full error details:", e)  # Temporary debug line
 
     # Update Name Section
     st.header("Update Name Test")
@@ -53,12 +43,11 @@ def test_supabase_connection():
     new_name = st.text_input("Enter new name")
 
     if st.button("Update Name"):
+        if not st.session_state.authenticated:
+            st.error("Please login first")
+            return
         if update_id and new_name:
             try:
-                # Check if user is authenticated
-                if not st.session_state.get("auth_session"):
-                    st.error("Please login first")
-                    return
                 update_result = st.session_state.supabase.update_name(
                     update_id, new_name
                 )
@@ -74,13 +63,36 @@ def test_supabase_connection():
     # Fetch Todos Section
     st.header("Fetch Todos Test")
     if st.button("Get Todos"):
+        if not st.session_state.authenticated:
+            st.error("Please login first")
+            return
         todos = st.session_state.supabase.get_todos()
         st.json(todos)
+
+    # Fetch Users Section
+    st.header("Fetch Users Test")
+    if st.button("Get Users"):
+        if not st.session_state.authenticated:
+            st.error("Please login first")
+            return
+        try:
+            users = st.session_state.supabase.get_test_users()
+            if users:
+                st.success(f"Found {len(users.data)} users")
+                st.json(users.data)
+            else:
+                st.error("No users found or error occurred")
+        except Exception as e:
+            st.error(f"Failed to fetch users: {str(e)}")
 
     # Logout Section
     st.header("Logout Test")
     if st.button("Logout"):
         st.session_state.supabase.logout()
+        # Clear authentication state but keep supabase instance
+        st.session_state.authenticated = False
+        if "auth_session" in st.session_state:
+            del st.session_state.auth_session
         st.success("Logged out successfully!")
 
 
