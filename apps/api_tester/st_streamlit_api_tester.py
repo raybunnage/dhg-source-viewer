@@ -1,11 +1,12 @@
+import sys
 import streamlit as st
 from pathlib import Path
-from src.core.services.google_pydrive2 import GooglePyDrive2
-from src.core.services.supabase_client import SupabaseService
 
-
-
-# Add the project root to Python path
+root_dir = Path(__file__).parent.parent.parent
+sys.path.append(str(root_dir))
+from src.services.google_pydrive2 import GooglePyDrive2
+from src.services.supabase_service import SupabaseService
+from src.services.support_claude import AnthropicService
 
 
 def show_privacy_policy():
@@ -23,19 +24,74 @@ def show_terms_of_service():
 
 
 def show_supabase_management():
-    st.title("Supabase Connection Test")
+    st.title("Supabase Drive Anthropic Test")
 
     url_key = st.secrets["SUPABASE_URL"]
     api_key = st.secrets["SUPABASE_KEY"]
+    test_email = st.secrets["TEST_EMAIL"]
+    test_password = st.secrets["TEST_PASSWORD"]
+    # st.write(test_email)
+    # st.write(test_password)
     supabase_client = SupabaseService(url_key, api_key)
-    supabase_client.initialize_client()
+    supabase_client.login(test_email, test_password)
     users = supabase_client.get_test_users()
+    todos = supabase_client.get_todos()
+    todos_data = todos.data if hasattr(todos, "data") else []
+    st.write(f"Number of todos: {len(todos_data)}")
+
     # st.write(users)
     # Convert the APIResponse to a list or dict before using len()
     users_data = users.data if hasattr(users, "data") else []
     st.write(f"Number of users: {len(users_data)}")
 
     show_first_mp4_video()
+    show_anthropic_test()
+    show_supabase_auth()
+
+
+def show_supabase_auth():
+    st.subheader("Supabase Auth Test")
+
+    supabase_url = st.secrets["SUPABASE_URL"]
+    supabase_key = st.secrets["SUPABASE_KEY"]
+
+    supabase = SupabaseService(supabase_url, supabase_key)
+
+    # Create signup form
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Sign Up"):
+        if email and password:
+            # Handle signup directly without async/await
+            with st.spinner("Signing up..."):
+                auth_response = supabase.login(email, password)
+                st.write(auth_response)
+                # if auth_response:
+                #     st.session_state.auth_session = auth_response
+                #     st.session_state.authenticated = True
+                st.success(f"Login successful! Welcome, {auth_response.user.email}")
+                st.rerun()  # Rerun to update the UI
+
+                # if response.success:
+                #     if response.needs_email_confirmation:
+                #         st.success("Please check your email for confirmation link")
+                #     else:
+                #         st.success("Successfully signed up!")
+                # else:
+                #     st.error(f"Signup failed: {response.error}")
+        else:
+            st.error("Please enter both email and password")
+
+
+def show_anthropic_test():
+    st.subheader("Anthropic Test")
+    api_key = st.secrets["ANTHROPIC_API_KEY"]
+    claude = AnthropicService(api_key)
+    response_basic, response_complex, response_follow_up = claude.test_anthropic()
+    st.write(response_basic)
+    st.write(response_complex)
+    st.write(response_follow_up)
 
 
 def show_first_mp4_video():
@@ -126,4 +182,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-# streamlit run src/apps/app1/components/drive_viewer.py
+# streamlit run apps/api_tester/st_streamlit_api_tester.py
