@@ -1,0 +1,31 @@
+-- CREATE TABLE public.uni_document_types (
+--     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--     domain_id UUID REFERENCES public.domains(id) ON DELETE SET NULL,
+--     document_type TEXT NOT NULL,
+--     current_num_of_type INTEGER,
+--     description TEXT,
+--     is_ai_generated INTEGER,
+--     mime_type TEXT NULL,
+--     file_extension TEXT NULL,
+--     document_type_counts INTEGER DEFAULT 0,
+--     category TEXT,
+--     is_active BOOLEAN DEFAULT TRUE,
+--     created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+--     updated_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+--     created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+--     updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+--     version INTEGER DEFAULT 1,
+--     required_fields JSONB
+-- );
+
+
+
+-- INSERT INTO public.uni_document_types (document_type, current_num_of_type, description, is_ai_generated, mime_type, file_extension, document_type_counts, category, version)
+-- SELECT document_type, current_num_of_type, description, is_ai_generated, mime_type, file_extension, document_type_counts, category, 1 from temp_document_types
+
+-- update uni_document_types
+-- set domain_id = '752f3bf7-a392-4283-bd32-e3f0e530c205',
+--     created_at = now(),
+--     updated_at = now(),
+--     created_by = 'f5972054-059e-4b1e-915e-268bcdcc94b9',
+--     updated_by = 'f5972054-059e-4b1e-915e-268bcdcc94b9'
