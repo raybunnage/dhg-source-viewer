@@ -32,7 +32,10 @@ class SupabaseService:
         self, table_name: str, fields: dict, where_filters: list = None
     ):
         try:
-            query = self.supabase.table(table_name).select(",".join(fields))
+            if fields == "*":
+                query = self.supabase.table(table_name).select("*")
+            else:
+                query = self.supabase.table(table_name).select(",".join(fields))
 
             if where_filters:
                 for filter in where_filters:
@@ -86,7 +89,11 @@ class SupabaseService:
 
     def update_table(
         self, table_name: str, update_fields: dict, where_filters: list
-    ) -> bool:
+    ) -> dict | None:
+        """Update records matching the filter and return the updated record.
+        Returns:
+            dict | None: The updated record with all fields, or None if update failed
+        """
         try:
             query = self.supabase.table(table_name).update(update_fields)
 
@@ -136,37 +143,25 @@ class SupabaseService:
 
             response = query.execute()
             if response.data and len(response.data) > 0:
-                print(
-                    f"Successfully updated table {table_name} with fields {update_fields}"
-                )
-                return True
-            else:
-                print(
-                    f"No rows affected in table {table_name} or policy prevented update"
-                )
-                return False
+                return response.data[0]  # Return first updated record
+            return None
         except Exception as e:
             print(f"Update error: {str(e)}")
-            return False
+            return None
 
-    def insert_into_table(self, table_name: str, insert_fields: dict) -> bool:
+    def insert_into_table(self, table_name: str, insert_fields: dict) -> dict | None:
+        """Insert a record and return the created record or None if failed.
+        Returns:
+            dict | None: The newly created record with all fields including id, or None if insert failed
+        """
         try:
-            query = self.supabase.table(table_name).insert(insert_fields)
-
-            response = query.execute()
+            response = self.supabase.table(table_name).insert(insert_fields).execute()
             if response.data and len(response.data) > 0:
-                print(
-                    f"Successfully inserted into table {table_name} with fields {insert_fields}"
-                )
-                return True
-            else:
-                print(
-                    f"No rows inserted into table {table_name} or policy prevented insert"
-                )
-                return False
+                return response.data[0]
+            return None
         except Exception as e:
             print(f"Insert error: {str(e)}")
-            return False
+            return None
 
     def update_name(self, id: int, new_name: str) -> bool:
         try:
@@ -218,6 +213,25 @@ class SupabaseService:
             return True
         except Exception as e:
             print(f"Password reset error: {str(e)}")
+            return False
+
+    def delete_from_table(self, table_name: str, where_filters: list) -> bool:
+        """Delete records matching the filter.
+        Returns:
+            bool: True if deletion was successful, False otherwise
+        """
+        try:
+            query = self.supabase.table(table_name).delete()
+            # Apply filters
+            for column, operator, value in where_filters:
+                if operator == "eq":
+                    query = query.eq(column, value)
+                # ... other operators ...
+
+            response = query.execute()
+            return bool(response.data)  # True if any rows were deleted
+        except Exception as e:
+            print(f"Delete error: {str(e)}")
             return False
 
 
@@ -284,14 +298,15 @@ def insert_test():
         "starting_ref_id": 123,
         "expertise_area": "AI",
         "experience_years": 5,
-        "user_id": "f5972054-059e-4b1e-915e-268bcdcc94b9"
+        "user_id": "f5972054-059e-4b1e-915e-268bcdcc94b9",
     }
     try:
         response = supabase.insert_into_table("experts", new_expert)
-        if response.status_code == 201:
+        if response:  # If we got back a dict with the inserted data
             print("New expert inserted successfully.")
+            print(f"Inserted expert data: {response}")
         else:
-            print(f"Failed to insert new expert. Status code: {response.status_code}")
+            print("Failed to insert new expert.")
     except Exception as e:
         print(f"Error inserting new expert: {str(e)}")
 
@@ -316,12 +331,19 @@ def select_from_table():
         ],
         [("is_active", "eq", True)],
     )
-
+    print(data)
+    fields = "*"
+    expert_id = "34acaa61-7fb4-4c02-b463-a55128e354f3"
+    data = supabase.select_from_table(
+        "experts",
+        fields,
+        [("id", "eq", expert_id)],
+    )
     print(data)
 
 
 if __name__ == "__main__":
-    insert_test()
+    select_from_table()
 
     # def __init__(self, supabase_client: Client):
     #     if not isinstance(supabase_client, Client):

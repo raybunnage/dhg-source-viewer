@@ -1,3 +1,49 @@
+
+import os
+import sys
+from pathlib import Path
+
+# Add the project root directory to Python path
+project_root = str(Path(__file__).parent.parent.parent)
+sys.path.append(project_root)
+
+from src.services.supabase_service import SupabaseService
+from dotenv import load_dotenv
+from typing import Optional
+
+class DocumentTypes:
+    def __init__(self, supabase_client):
+        self.supabase = supabase_client
+
+    def get_document_type_id_with_alias(self, document_type: str) -> Optional[str]:
+        try:
+            # First try direct lookup in document_types
+            result = self.supabase.select_from_table(
+                "document_types",
+                [id"],
+                [("LOWER(document_type)", "eq", document_type.lower())]
+            )
+
+            if result:
+                return result[0]['id']
+
+            # If not found, try looking up in aliases
+            result = self.supabase.select_from_table(
+                "document_type_aliases",
+                ["document_type_uuid"],
+                [("LOWER(alias_name)", "eq", document_type.lower())]
+            )
+
+            return result[0]['document_type_uuid'] if result else None
+
+        except Exception as e:
+            print(f"Error looking up document type: {str(e)}")
+            return None
+
+
+
+
+
 -- CREATE TABLE public.uni_document_types (
 --     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 --     domain_id UUID REFERENCES public.domains(id) ON DELETE SET NULL,

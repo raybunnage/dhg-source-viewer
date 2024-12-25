@@ -1,100 +1,131 @@
-def st_manage_experts():
-    """
-    Streamlit function to manage experts with CRUD operations
-    """
-    import streamlit as st
-    import pandas as pd
-    from datetime import datetime
+import streamlit as st
+from pathlib import Path
+import sys
+import pandas as pd
 
-    st.title("Expert Management")
+project_root = str(Path(__file__).parent.parent)
+sys.path.insert(0, project_root)
+from src.services.supabase_service import SupabaseService
+from src.db.experts import Experts
 
-    # Initialize session state for experts if it doesn't exist
-    if 'experts' not in st.session_state:
-        st.session_state.experts = pd.DataFrame(
-            columns=['id', 'name', 'expertise', 'email', 'created_at', 'updated_at']
-        )
 
-    # Create new expert section
-    st.subheader("Add New Expert")
-    with st.form("add_expert_form"):
-        name = st.text_input("Name")
-        expertise = st.text_input("Expertise")
-        email = st.text_input("Email")
-        
-        submit_button = st.form_submit_button("Add Expert")
-        
-        if submit_button and name and expertise and email:
-            new_expert = {
-                'id': len(st.session_state.experts) + 1,
-                'name': name,
-                'expertise': expertise,
-                'email': email,
-                'created_at': datetime.now(),
-                'updated_at': datetime.now()
-            }
-            st.session_state.experts = pd.concat([
-                st.session_state.experts,
-                pd.DataFrame([new_expert])
-            ], ignore_index=True)
-            st.success("Expert added successfully!")
+def initialize_page():
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    supabase = SupabaseService(url, key)
+    email = st.secrets["TEST_EMAIL"]
+    password = st.secrets["TEST_PASSWORD"]
+    supabase.login(email, password)
+    experts = Experts(supabase)
+    return experts
+    # expert_service.do_crud_test()
 
-    # Display and manage existing experts
-    st.subheader("Existing Experts")
-    if not st.session_state.experts.empty:
-        for idx, expert in st.session_state.experts.iterrows():
-            with st.expander(f"Expert: {expert['name']}"):
-                col1, col2, col3 = st.columns([3, 1, 1])
-                
-                with col1:
-                    st.write(f"**ID:** {expert['id']}")
-                    st.write(f"**Name:** {expert['name']}")
-                    st.write(f"**Expertise:** {expert['expertise']}")
-                    st.write(f"**Email:** {expert['email']}")
-                
-                with col2:
-                    if st.button("Edit", key=f"edit_{expert['id']}"):
-                        st.session_state.editing = expert['id']
-                
-                with col3:
-                    if st.button("Delete", key=f"delete_{expert['id']}"):
-                        st.session_state.experts = st.session_state.experts[
-                            st.session_state.experts['id'] != expert['id']
-                        ]
-                        st.success("Expert deleted successfully!")
-                        st.rerun()
 
-                # Edit form
-                if hasattr(st.session_state, 'editing') and st.session_state.editing == expert['id']:
-                    with st.form(f"edit_expert_form_{expert['id']}"):
-                        updated_name = st.text_input("Update Name", expert['name'])
-                        updated_expertise = st.text_input("Update Expertise", expert['expertise'])
-                        updated_email = st.text_input("Update Email", expert['email'])
-                        
-                        if st.form_submit_button("Save Changes"):
-                            st.session_state.experts.loc[idx, 'name'] = updated_name
-                            st.session_state.experts.loc[idx, 'expertise'] = updated_expertise
-                            st.session_state.experts.loc[idx, 'email'] = updated_email
-                            st.session_state.experts.loc[idx, 'updated_at'] = datetime.now()
-                            del st.session_state.editing
-                            st.success("Expert updated successfully!")
-                            st.rerun()
-    else:
-        st.info("No experts found. Add your first expert using the form above.")
+def st_manage_experts(set_page_config: bool = True):
+    experts = initialize_page()
+    if set_page_config:
+        st.set_page_config(layout="wide")
 
-    # Export functionality
-    if not st.session_state.experts.empty:
-        st.subheader("Export Experts")
-        if st.button("Export to CSV"):
-            csv = st.session_state.experts.to_csv(index=False)
-            st.download_button(
-                label="Download CSV",
-                data=csv,
-                file_name="experts.csv",
-                mime="text/csv"
+    # Create two columns
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.sidebar.title("Manage Experts")
+        st.sidebar.subheader("Actions")
+        action = st.sidebar.radio("Select Action", ["Add", "Edit", "Delete"])
+
+        if action == "Add":
+            st.subheader("Add Expert")
+            expert_name = st.text_input("Expert Name")
+            full_name = st.text_input("Full Name")
+            email_address = st.text_input("Email Address")
+            bio = st.text_area("Bio")
+            expertise = st.text_input("Expertise")
+            years_experience = st.number_input(
+                "Years of Experience", min_value=0, max_value=100, step=1
             )
+            if st.button("Add Expert"):
+
+                additional_fields = {
+                    "bio": bio,
+                    "expertise": expertise,
+                    "years_experience": years_experience,
+                }
+                result = experts.add_expert(
+                    expert_name,
+                    full_name,
+                    email_address,
+                    additional_fields,
+                )
+                if result:
+                    st.success("Expert added successfully")
+                else:
+                    st.error("Failed to add expert")
+
+        # elif action == "Edit":
+        #     st.subheader("Edit Expert")
+        #     experts = Experts.get_all_experts()
+        #     expert_names = sorted([expert.expert_name for expert in experts])
+        #     selected_expert_name = st.selectbox("Select Expert to Edit", expert_names)
+        #     if selected_expert_name:
+        #         selected_expert = next(
+        #             expert
+        #             for expert in experts
+        #             if expert.expert_name == selected_expert_name
+        #         )
+        #         full_name = st.text_input("Full Name", value=selected_expert.full_name)
+        #         bio = st.text_area("Bio", value=selected_expert.bio)
+        #         expertise = st.text_input("Expertise", value=selected_expert.expertise)
+        #         years_experience = st.number_input(
+        #             "Years of Experience",
+        #             min_value=0,
+        #             max_value=100,
+        #             step=1,
+        #             value=selected_expert.years_experience,
+        #         )
+        #         if st.button("Update Expert"):
+        #             selected_expert.full_name = full_name
+        #             selected_expert.bio = bio
+        #             selected_expert.expertise = expertise
+        #             selected_expert.years_experience = years_experience
+        #             selected_expert.save()
+        #             st.success("Expert updated successfully")
+
+        # elif action == "Delete":
+        #     st.subheader("Delete Expert")
+        #     experts = Experts.get_all()
+        #     expert_names = sorted([expert.expert_name for expert in experts])
+        #     selected_expert_name = st.selectbox("Select Expert to Delete", expert_names)
+        #     if selected_expert_name:
+        #         selected_expert = next(
+        #             expert
+        #             for expert in experts
+        #             if expert.expert_name == selected_expert_name
+        #         )
+        #         if st.button("Delete Expert"):
+        #             selected_expert.delete()
+        #             st.success("Expert deleted successfully")
+
+    with col2:
+        pass
+        # st.subheader("All Experts")
+        # experts = Experts.get_all_experts()
+        # experts_data = [
+        #     {
+        #         "Expert Name": expert.expert_name,
+        #         "Full Name": expert.full_name,
+        #         "Email Address": expert.email_address,
+        #         "Bio": expert.bio,
+        #         "Expertise": expert.expertise,
+        #         "Years of Experience": expert.years_experience,
+        #     }
+        #     for expert in experts
+        # ]
+        # df = pd.DataFrame(experts_data)
+        # st.dataframe(df)
+
 
 if __name__ == "__main__":
     st_manage_experts()
-
 
 # streamlit run st_shared/st_experts.py

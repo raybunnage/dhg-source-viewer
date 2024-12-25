@@ -98,3 +98,11 @@ add a foreign constraint one the expert_id on the sources table
 add a foreign constraint one the parent_id on the sources table
 
 add a foreign constraint one the created_by and updated_by field on the sources table
+
+SELECT get_user_uuid_by_email('bunnage.ray@gmail.com');
+
+SELECT get_domain_id_by_name('Dynamic Healing Group');
+
+SELECT populate_sources_with_fixed_user_id(
+    'bunnage.ray@gmail.com'
+);

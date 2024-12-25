@@ -1,0 +1,4 @@
+what critiques do you have of the domains table?  What indexes shoud I add, defaults? constraints? additional fields I could add? what rls policy shoud I create? Is the domains table solid for going forward or does it need work?
+
+
+is sources table set with regard to correct fields, defaults for fields, indexes on likely most used fields, constraints, referential integrity (epsecially on uuid fields) cascading deletes, foreign keys and rls policies, what fields could be added, how is it likely to serve my purposes and perform?   Any likely gotchas or problems you foresee as this table is used for most tables rls policies?
