@@ -122,7 +122,7 @@ def st_manage_experts(set_page_config: bool = True):
                     update_expert = {
                         "full_name": full_name,
                         "bio": bio,
-                        "expertise": expertise_area,
+                        "expertise_area": expertise_area,
                         "experience_years": experience_years,
                         "is_in_core_group": is_in_core_group,
                     }
@@ -149,12 +149,12 @@ def st_manage_experts(set_page_config: bool = True):
             )
             if selected_expert_name:
                 if st.button("Delete Expert"):
-                    st.write(selected_expert_id)
                     result = experts.delete_expert(selected_expert_id)
                     if result is True:
                         st.success(
                             f"Expert '{selected_expert_name}' deleted successfully"
                         )
+                        st.rerun()  # Updated from st.experimental_rerun()
                     else:
                         st.error(f"Failed to delete expert '{selected_expert_name}'")
 
