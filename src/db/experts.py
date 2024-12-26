@@ -43,7 +43,14 @@ class Experts:
 
     def get_all_experts(self, additional_fields: dict = None) -> list | None:
         try:
-            fields = ["id", "user_id", "expert_name", "full_name"]
+            fields = [
+                "id",
+                "user_id",
+                "expert_name",
+                "full_name",
+                "email_address",
+                "is_in_core_group",
+            ]
             if additional_fields:
                 fields.extend(additional_fields)
             response = self.supabase.select_from_table(
@@ -117,7 +124,7 @@ class Experts:
             response = self.supabase.delete_from_table(
                 "experts", [("id", "eq", expert_id)]
             )
-            if response and len(response) > 0:
+            if response:
                 print("Expert deleted successfully.")
                 return True
             else:
