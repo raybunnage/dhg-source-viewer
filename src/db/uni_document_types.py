@@ -14,9 +14,35 @@ from src.db.base_db import BaseDB
 
 class DocumentTypes(BaseDB):
     def __init__(self, supabase_client):
-        super().__init__()  # Initialize BaseDB for domain-level logging
-        self.supabase = supabase_client  # Composition instead of inheritance
+        super().__init__()
+        if not supabase_client:
+            raise ValueError("Supabase client cannot be None")
+        self.supabase = supabase_client
         self.table_name = "uni_document_types"
+        # Verify connection on initialization
+        self._verify_connection()
+
+    def _verify_connection(self) -> bool:
+        """Verify the Supabase connection is active"""
+        try:
+            # Simple query to test connection without limit parameter
+            self.supabase.select_from_table(self.table_name, ["id"], [])
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to verify database connection: {str(e)}")
+            raise ConnectionError("Could not establish database connection") from e
+
+    def _handle_db_operation(
+        self, operation_name: str, operation_func, *args, **kwargs
+    ):
+        """Generic error handler for database operations"""
+        try:
+            if not self.supabase:
+                raise ConnectionError("No database connection available")
+            return operation_func(*args, **kwargs)
+        except Exception as e:
+            self.logger.error(f"Error in {operation_name}: {str(e)}")
+            raise
 
     def add(
         self,
@@ -28,7 +54,7 @@ class DocumentTypes(BaseDB):
         is_ai_generated: bool = False,
         additional_fields: dict = None,
     ) -> dict:
-        try:
+        def _add_operation():
             document_type_data = {
                 "document_type": document_type,
                 "description": description,
@@ -43,51 +69,38 @@ class DocumentTypes(BaseDB):
             result = self.supabase.insert_into_table(
                 self.table_name, document_type_data
             )
+            if not result:
+                raise ValueError("Failed to add document type")
+            return result
 
-            if result:
-                return result
-            else:
-                self.logger.error("Failed to add document type")
-                return None
-
-        except Exception as e:
-            self.logger.error(f"Error creating document type: {str(e)}")
-            return None
+        return self._handle_db_operation("add_document_type", _add_operation)
 
     def get_by_id(self, document_type_id: str) -> dict:
-        try:
+        def _get_by_id_operation():
             fields = "*"
             result = self.supabase.select_from_table(
                 self.table_name, fields, [("id", "eq", document_type_id)]
             )
-            if result and len(result) > 0:
-                return result[0]
-            self.logger.error("Document type not found.")
-            return None
+            if not result or len(result) == 0:
+                raise ValueError("Document type not found")
+            return result[0]
 
-        except Exception as e:
-            self.logger.error(f"Error getting document type: {str(e)}")
-            return None
+        return self._handle_db_operation("get_by_id", _get_by_id_operation)
 
     def update(self, document_type_id: str, update_data: dict) -> dict:
-        try:
-            # Add updated timestamp
+        def _update_operation():
             update_data["updated_at"] = "now()"
-
             result = self.supabase.update_table(
                 self.table_name, update_data, [("id", "eq", document_type_id)]
             )
-            if result and len(result) > 0:
-                return result
-            self.logger.error("Failed to update document type.")
-            return None
+            if not result or len(result) == 0:
+                raise ValueError("Failed to update document type")
+            return result
 
-        except Exception as e:
-            self.logger(f"Error updating document type: {str(e)}")
-            return None
+        return self._handle_db_operation("update", _update_operation)
 
-    def get_all(self, additional_fields: dict = None) -> list | None:
-        try:
+    def get_all(self, additional_fields: dict = None) -> list:
+        def _get_all_operation():
             fields = [
                 "id",
                 "document_type",
@@ -100,21 +113,18 @@ class DocumentTypes(BaseDB):
             if additional_fields:
                 fields.extend(additional_fields)
             response = self.supabase.select_from_table(self.table_name, fields, [])
-            if response and len(response) > 0:
-                return response
-            self.logger.error(
-                "Failed to retrieve document types or policy prevented read."
-            )
-            return None
+            if not response or len(response) == 0:
+                raise ValueError(
+                    "Failed to retrieve document types or policy prevented read"
+                )
+            return response
 
-        except Exception as e:
-            self.logger(f"Error getting document types: {str(e)}")
-            return None
+        return self._handle_db_operation("get_all", _get_all_operation)
 
     def get_plus_by_name(
         self, document_type_name: str, optional_fields: dict = None
-    ) -> dict | None:
-        try:
+    ) -> dict:
+        def _get_plus_by_name_operation():
             fields = [
                 "id",
                 "document_type",
@@ -131,77 +141,65 @@ class DocumentTypes(BaseDB):
                 fields,
                 [("document_type", "eq", document_type_name)],
             )
-            if response and len(response) > 0:
-                return response[0]
-            else:
-                self.logger.error("Document type not found or policy prevented read.")
-                return None
-        except Exception as e:
-            self.logger.error(f"Error reading document type: {str(e)}")
-            return None
+            if not response or len(response) == 0:
+                raise ValueError("Document type not found or policy prevented read")
+            return response[0]
+
+        return self._handle_db_operation(
+            "get_plus_by_name", _get_plus_by_name_operation
+        )
 
     def delete(self, document_type_id: str) -> bool:
-        try:
+        def _delete_operation():
             result = self.supabase.delete_from_table(
                 self.table_name, [("id", "eq", document_type_id)]
             )
-            if result:
-                return True
-            self.logger.error("Failed to delete document type.")
-            return False
-        except Exception as e:
-            self.logger.error(f"Error deleting document type: {str(e)}")
-            return False
+            if not result:
+                raise ValueError("Failed to delete document type")
+            return True
+
+        return self._handle_db_operation("delete", _delete_operation)
 
     def do_crud_test(self):
-        # Create a document type
-        new_type = {
-            "document_type": "Test Document",
-            "description": "A test document type",
-            "mime_type": "application/pdf",
-            "file_extension": ".pdf",
-            "category": "test",
-            "is_ai_generated": False,
-        }
-        test_add = self.add(
-            new_type["document_type"],
-            new_type["description"],
-            new_type["mime_type"],
-            new_type["file_extension"],
-            new_type["category"],
-            new_type["is_ai_generated"],
-        )
-        self.logger.info(f"Test add: {test_add}")
+        def _crud_test_operation():
+            # Create a document type
+            new_type = {
+                "document_type": "Test Document",
+                "description": "A test document type",
+                "mime_type": "application/pdf",
+                "file_extension": ".pdf",
+                "category": "test",
+                "is_ai_generated": False,
+            }
 
-        # Read the document type
-        doc_type_name = new_type["document_type"]
-        optional_fields = ["category", "is_ai_generated"]
-        doc_type_data = self.get_plus_by_name(doc_type_name, optional_fields)
-        if doc_type_data:
+            test_add = self.add(
+                new_type["document_type"],
+                new_type["description"],
+                new_type["mime_type"],
+                new_type["file_extension"],
+                new_type["category"],
+                new_type["is_ai_generated"],
+            )
+            self.logger.info(f"Test add: {test_add}")
+
+            # Read and verify other operations
+            doc_type_name = new_type["document_type"]
+            optional_fields = ["category", "is_ai_generated"]
+            doc_type_data = self.get_plus_by_name(doc_type_name, optional_fields)
             self.logger.info(
                 f"Document type data from get_plus_by_name: {doc_type_data}"
             )
-        else:
-            self.logger.error("Read operation failed.")
 
-        # Get all document types
-        all_doc_types = self.get_all(["category", "is_ai_generated"])
-        if all_doc_types:
+            all_doc_types = self.get_all(["category", "is_ai_generated"])
             self.logger.info(f"Number of document types: {len(all_doc_types)}")
-        else:
-            self.logger.error("Failed to retrieve all document types")
 
-        # Update the document type
-        if doc_type_data:
+            # Update and verify
             doc_type_id = doc_type_data["id"]
             update_data = {"description": "Updated test description"}
             update_success = self.update(doc_type_id, update_data)
-            if update_success:
-                self.logger.info(
-                    f"Update operation successful. Updated data: {update_success}"
-                )
-            else:
-                self.logger.error("Update operation failed.")
+            self.logger.info(
+                f"Update operation successful. Updated data: {update_success}"
+            )
 
             # Verify update
             updated_doc = self.get_plus_by_name(doc_type_name, optional_fields)
@@ -209,10 +207,13 @@ class DocumentTypes(BaseDB):
 
             # Test delete
             delete_success = self.delete(doc_type_id)
-            if delete_success:
-                self.logger.info("Delete operation successful.")
-            else:
-                self.logger.error("Delete operation failed.")
+            if not delete_success:
+                raise ValueError("Delete operation failed")
+            self.logger.info("Delete operation successful.")
+
+            return True
+
+        return self._handle_db_operation("do_crud_test", _crud_test_operation)
 
 
 def test_crud_operations():

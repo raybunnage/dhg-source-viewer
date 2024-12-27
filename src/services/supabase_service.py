@@ -6,11 +6,19 @@ from src.db.base_db import BaseDB
 
 
 class SupabaseService(BaseDB):
-    def __init__(self, url, api_key):
+    def __init__(self, url: str, api_key: str):
         super().__init__()
         self.url = url
         self.api_key = api_key
-        self._supabase = create_client(self.url, self.api_key)
+        self._init_client()
+
+    def _init_client(self) -> None:
+        """Initialize the Supabase client with basic retry logic"""
+        try:
+            self._supabase = create_client(self.url, self.api_key)
+        except Exception as e:
+            self.logger.error(f"Failed to initialize Supabase client: {str(e)}")
+            raise
 
     @property
     def supabase(self) -> Client:
@@ -30,6 +38,9 @@ class SupabaseService(BaseDB):
     def select_from_table(
         self, table_name: str, fields: dict, where_filters: list = None
     ):
+        if not table_name:
+            raise ValueError("Table name is required")
+
         try:
             if fields == "*":
                 query = self.supabase.table(table_name).select("*")
@@ -81,6 +92,9 @@ class SupabaseService(BaseDB):
                         raise ValueError(f"Unsupported operator: {operator}")
 
             response = query.execute()
+            if not response or not hasattr(response, "data"):
+                self.logger.error("Invalid response format from Supabase")
+                return None
             return response.data
         except Exception as e:
             self.logger.error(f"Select error: {str(e)}")
@@ -93,6 +107,10 @@ class SupabaseService(BaseDB):
         Returns:
             dict | None: The updated record with all fields, or None if update failed
         """
+
+        if not table_name:
+            raise ValueError("Table name is required")
+
         try:
             query = self.supabase.table(table_name).update(update_fields)
 
@@ -151,14 +169,9 @@ class SupabaseService(BaseDB):
     def insert_into_table(
         self, table_name: str, insert_fields: dict, upsert: bool = False
     ) -> dict | None:
-        """Insert a record and return the created record or None if failed.
-        Args:
-            table_name: The table to insert into
-            insert_fields: The fields to insert
-            upsert: If True, update existing record instead of failing on conflict
-        Returns:
-            dict | None: The newly created/updated record with all fields including id, or None if failed
-        """
+        if not table_name:
+            raise ValueError("Table name is required")
+
         try:
             query = self.supabase.table(table_name)
             if upsert:
@@ -202,12 +215,12 @@ class SupabaseService(BaseDB):
         try:
             self.email = email
             self.password = password
-            print(f"Attempting login with email: {email}")
+            self.logger.info(f"Attempting login with email: {email}")
             data = self.supabase.auth.sign_in_with_password(
                 {"email": email, "password": password}
             )
-            print(f"Auth response data: {data}")
-            print(f"User data: {data.user if data else 'No data'}")
+            # self.logger.info(f"Auth response data: {data}")
+            # self.logger.info(f"User data: {data.user if data else 'No data'}")
             self.session = data
             return data
         except Exception as e:
@@ -221,7 +234,7 @@ class SupabaseService(BaseDB):
     def reset_password(self, email: str) -> bool:
         try:
             self.supabase.auth.api.reset_password_for_email(email)
-            self.logger.error(f"Password reset email sent to {email}")
+            self.logger.info(f"Password reset email sent to {email}")
             return True
         except Exception as e:
             self.logger.error(f"Password reset error: {str(e)}")
