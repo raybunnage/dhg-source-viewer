@@ -34,7 +34,7 @@ def st_manage_experts(set_page_config: bool = True):
     with col1:
         st.sidebar.title("Manage Experts")
         st.sidebar.subheader("Actions")
-        action = st.sidebar.radio("Select Action", ["Add", "Edit", "Delete","Alias"])
+        action = st.sidebar.radio("Select Action", ["Add", "Edit", "Delete", "Alias"])
 
         if action == "Add":
             st.subheader("Add Expert")
@@ -188,9 +188,30 @@ def st_manage_experts(set_page_config: bool = True):
             aliases = experts.get_aliases_by_expert_name(selected_expert_name)
             if aliases:
                 st.subheader(f"Aliases for {selected_expert_name}")
-                st.dataframe(aliases, width=1000, height=600)
+                # Convert aliases to a pandas DataFrame and select specific columns
+                df = pd.DataFrame(aliases)
+                st.dataframe(
+                    df[["id", "expert_alias"]],
+                    hide_index=True,
+                )
             else:
                 st.warning(f"No aliases found for {selected_expert_name}")
+
+            alias_id_to_delete = st.number_input(
+                "Enter Alias ID to Delete", min_value=0, step=1
+            )
+            if alias_id_to_delete:
+                if st.button("Delete Alias"):
+                    result = experts.delete_alias(alias_id_to_delete)
+                    if result:
+                        st.success(
+                            f"Alias with ID '{alias_id_to_delete}' deleted successfully"
+                        )
+                        st.rerun()  # Refresh the page after deleting alias
+                    else:
+                        st.error(
+                            f"Failed to delete alias with ID '{alias_id_to_delete}'"
+                        )
 
     with col2:
         st.subheader("All Experts")

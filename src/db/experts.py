@@ -31,7 +31,9 @@ class Experts:
                 expert_data.update(additional_fields)
 
             # Use upsert=True to update if record exists
-            response = self.supabase.insert_into_table("experts", expert_data, upsert=True)
+            response = self.supabase.insert_into_table(
+                "experts", expert_data, upsert=True
+            )
             if response:
                 print("Expert created/updated successfully.")
                 return response
@@ -147,29 +149,26 @@ class Experts:
             existing_alias = self.supabase.select_from_table(
                 "citation_expert_aliases",
                 ["expert_alias"],
-                [("expert_alias", "eq", alias_name)]
+                [("expert_alias", "eq", alias_name)],
             )
-            
+
             if existing_alias:
                 print(f"Alias '{alias_name}' already exists.")
                 return existing_alias[0]  # Return the existing record
-            
+
             # If alias doesn't exist, create it
             response = self.supabase.insert_into_table(
                 "citation_expert_aliases",
-                {
-                    "expert_alias": alias_name,
-                    "expert_uuid": expert_data["id"]
-                }
+                {"expert_alias": alias_name, "expert_uuid": expert_data["id"]},
             )
-            
+
             if response:
                 print("Alias added successfully.")
                 return response
             else:
                 print("Failed to add alias or policy prevented insert.")
                 return None
-            
+
         except Exception as e:
             print(f"Error adding alias: {str(e)}")
             return None
@@ -184,8 +183,8 @@ class Experts:
             expert_id = expert_data["id"]
             response = self.supabase.select_from_table(
                 "citation_expert_aliases",
-                ["expert_alias"],
-                [("expert_uuid", "eq", expert_id)]
+                ["id", "expert_alias"],
+                [("expert_uuid", "eq", expert_id)],
             )
             if response and len(response) > 0:
                 return response
@@ -196,6 +195,22 @@ class Experts:
             print(f"Error getting aliases: {str(e)}")
             return None
 
+    def delete_alias(self, alias_id: str) -> bool:
+        try:
+            response = self.supabase.delete_from_table(
+                "citation_expert_aliases", [("id", "eq", alias_id)]
+            )
+            if response:
+                print(f"Alias '{alias_id}' deleted successfully.")
+                return True
+            else:
+                print(
+                    f"Failed to delete alias '{alias_id}' or policy prevented delete."
+                )
+                return False
+        except Exception as e:
+            print(f"Error deleting alias: {str(e)}")
+            return False
 
     def do_crud_test(self):
         # Create an expert
@@ -245,10 +260,8 @@ class Experts:
         expert_data = self.get_expert_by_id(expert_id)
         print(f"Expert data: from get_expert_by_id: {expert_data}")
 
-
         alias_data = self.add_alias("Abernethy", "Abernathy")
         print(f"Alias data: {alias_data}")
-
 
         aliases = self.get_aliases_by_expert_name("Carter")
         print(f"Aliases: {aliases}")
