@@ -174,6 +174,29 @@ class Experts:
             print(f"Error adding alias: {str(e)}")
             return None
 
+    def get_aliases_by_expert_name(self, expert_name: str) -> list | None:
+        try:
+            expert_data = self.get_expert_plus_by_name(expert_name)
+            if not expert_data:
+                print("Expert not found or policy prevented read.")
+                return None
+
+            expert_id = expert_data["id"]
+            response = self.supabase.select_from_table(
+                "citation_expert_aliases",
+                ["expert_alias"],
+                [("expert_uuid", "eq", expert_id)]
+            )
+            if response and len(response) > 0:
+                return response
+            else:
+                print("No aliases found for expert or policy prevented read.")
+                return None
+        except Exception as e:
+            print(f"Error getting aliases: {str(e)}")
+            return None
+
+
     def do_crud_test(self):
         # Create an expert
         new_expert = {
@@ -225,6 +248,10 @@ class Experts:
 
         alias_data = self.add_alias("Abernethy", "Abernathy")
         print(f"Alias data: {alias_data}")
+
+
+        aliases = self.get_aliases_by_expert_name("Carter")
+        print(f"Aliases: {aliases}")
 
         # # Delete the expert
         # delete_success = self.delete_expert(expert_id)

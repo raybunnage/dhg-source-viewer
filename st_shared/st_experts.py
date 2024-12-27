@@ -165,12 +165,32 @@ def st_manage_experts(set_page_config: bool = True):
 
         elif action == "Alias":
             st.subheader("Alias Expert")
-            expert_name = st.text_input("Expert Name")
             alias_name = st.text_input("Alias Name")
-            if st.button("Add Alias"):
-                result = experts.add_alias(expert_name, alias_name)
-                if result:
-                    st.success(f"Alias '{alias_name}' added successfully")
+            experts_alias = experts.get_all_experts()
+            expert_aliases = sorted(
+                [(expert["id"], expert["expert_name"]) for expert in experts_alias],
+                key=lambda x: x[1],
+            )
+            selected_expert_id, selected_expert_name = st.selectbox(
+                "Select Expert to Delete",
+                expert_aliases,
+                format_func=lambda x: x[1],
+                key="select_expert_to_alias",
+            )
+            if selected_expert_name:
+                if st.button("Add Alias"):
+                    result = experts.add_alias(selected_expert_name, alias_name)
+                    if result:
+                        st.success(f"Alias '{alias_name}' added successfully")
+                    else:
+                        st.error(f"Failed to add alias '{alias_name}'")
+
+            aliases = experts.get_aliases_by_expert_name(selected_expert_name)
+            if aliases:
+                st.subheader(f"Aliases for {selected_expert_name}")
+                st.dataframe(aliases, width=1000, height=600)
+            else:
+                st.warning(f"No aliases found for {selected_expert_name}")
 
     with col2:
         st.subheader("All Experts")
