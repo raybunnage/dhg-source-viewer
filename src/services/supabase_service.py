@@ -2,16 +2,15 @@ import os
 from dotenv import load_dotenv
 from supabase import create_client
 from supabase import Client
+from src.db.base_db import BaseDB
 
 
-class SupabaseService:
+class SupabaseService(BaseDB):
     def __init__(self, url, api_key):
+        super().__init__()
         self.url = url
         self.api_key = api_key
         self._supabase = create_client(self.url, self.api_key)
-
-    # def _initialize_client(self):
-    #     self._supabase = create_client(self.url, self.api_key)
 
     @property
     def supabase(self) -> Client:
@@ -84,7 +83,7 @@ class SupabaseService:
             response = query.execute()
             return response.data
         except Exception as e:
-            print(f"Select error: {str(e)}")
+            self.logger.error(f"Select error: {str(e)}")
             return None
 
     def update_table(
@@ -146,7 +145,7 @@ class SupabaseService:
                 return response.data[0]  # Return first updated record
             return None
         except Exception as e:
-            print(f"Update error: {str(e)}")
+            self.logger.error(f"Update error: {str(e)}")
             return None
 
     def insert_into_table(
@@ -173,7 +172,7 @@ class SupabaseService:
                 return response.data[0]
             return None
         except Exception as e:
-            print(f"Insert error: {str(e)}")
+            self.logger.error(f"Insert error: {str(e)}")
             return None
 
     def update_name(self, id: int, new_name: str) -> bool:
@@ -192,7 +191,7 @@ class SupabaseService:
                 print(f"No todo found with id {id} or policy prevented update")
                 return False
         except Exception as e:
-            print(f"Update error: {str(e)}")
+            self.logger.error(f"Update error: {str(e)}")
             return False
 
     def set_email_and_password(self, email: str, password: str):
@@ -212,7 +211,7 @@ class SupabaseService:
             self.session = data
             return data
         except Exception as e:
-            print(f"Login error details: {str(e)}")
+            self.logger.error(f"Login error details: {str(e)}")
             return None
 
     def logout(self):
@@ -222,10 +221,10 @@ class SupabaseService:
     def reset_password(self, email: str) -> bool:
         try:
             self.supabase.auth.api.reset_password_for_email(email)
-            print(f"Password reset email sent to {email}")
+            self.logger.error(f"Password reset email sent to {email}")
             return True
         except Exception as e:
-            print(f"Password reset error: {str(e)}")
+            self.logger.error(f"Password reset error: {str(e)}")
             return False
 
     def delete_from_table(self, table_name: str, where_filters: list) -> bool:
@@ -244,7 +243,7 @@ class SupabaseService:
             response = query.execute()
             return bool(response.data)  # True if any rows were deleted
         except Exception as e:
-            print(f"Delete error: {str(e)}")
+            self.logger.error(f"Delete error: {str(e)}")
             return False
 
 

@@ -54,7 +54,7 @@ def st_manage_experts(set_page_config: bool = True):
                     "experience_years": years_experience,
                     "is_in_core_group": is_in_core_group,
                 }
-                result = experts.add_expert(
+                result = experts.add(
                     expert_name,
                     full_name,
                     email_address,
@@ -68,7 +68,7 @@ def st_manage_experts(set_page_config: bool = True):
         elif action == "Edit":
             st.subheader("Edit Expert")
             additional_fields = ["bio", "expertise_area", "experience_years"]
-            experts_list = experts.get_all_experts(additional_fields)
+            experts_list = experts.get_all(additional_fields)
             if not experts_list:
                 st.warning("No experts found in the database")
                 return
@@ -131,7 +131,7 @@ def st_manage_experts(set_page_config: bool = True):
                         "is_in_core_group": is_in_core_group,
                         "email_address": selected_expert_email,
                     }
-                    expert = experts.update_expert(selected_expert_id, update_expert)
+                    expert = experts.update(selected_expert_id, update_expert)
                     if expert:
                         st.success(
                             f"Expert updated successfully for {selected_expert_name}"
@@ -141,7 +141,7 @@ def st_manage_experts(set_page_config: bool = True):
 
         elif action == "Delete":
             st.subheader("Delete Expert")
-            experts_delete = experts.get_all_experts()
+            experts_delete = experts.get_all()
             expert_deletes = sorted(
                 [(expert["id"], expert["expert_name"]) for expert in experts_delete],
                 key=lambda x: x[1],
@@ -154,7 +154,7 @@ def st_manage_experts(set_page_config: bool = True):
             )
             if selected_expert_name:
                 if st.button("Delete Expert"):
-                    result = experts.delete_expert(selected_expert_id)
+                    result = experts.delete(selected_expert_id)
                     if result is True:
                         st.success(
                             f"Expert '{selected_expert_name}' deleted successfully"
@@ -166,7 +166,7 @@ def st_manage_experts(set_page_config: bool = True):
         elif action == "Alias":
             st.subheader("Alias Expert")
             alias_name = st.text_input("Alias Name")
-            experts_alias = experts.get_all_experts()
+            experts_alias = experts.get_all()
             expert_aliases = sorted(
                 [(expert["id"], expert["expert_name"]) for expert in experts_alias],
                 key=lambda x: x[1],
@@ -216,7 +216,7 @@ def st_manage_experts(set_page_config: bool = True):
     with col2:
         st.subheader("All Experts")
         additional_fields = ["bio", "expertise_area", "experience_years"]
-        experts_list = experts.get_all_experts(additional_fields)
+        experts_list = experts.get_all(additional_fields)
         if experts_list:
             # Remove 'id' and 'user_id' from each expert dictionary
             for expert in experts_list:

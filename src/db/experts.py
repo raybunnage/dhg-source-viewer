@@ -1,20 +1,24 @@
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Add the project root directory to Python path
 project_root = str(Path(__file__).parent.parent.parent)
 sys.path.append(project_root)
 
+from src.db.base_db import BaseDB
 from src.services.supabase_service import SupabaseService
-from dotenv import load_dotenv
 
 
-class Experts:
+class Experts(BaseDB):
     def __init__(self, supabase_client):
+        super().__init__()
         self.supabase = supabase_client
+        self.table_name = "experts"
+        self.alias_table_name = "citation_expert_aliases"
 
-    def add_expert(
+    def add(
         self,
         expert_name: str,
         full_name: str,
@@ -30,21 +34,17 @@ class Experts:
             if additional_fields:
                 expert_data.update(additional_fields)
 
-            # Use upsert=True to update if record exists
-            response = self.supabase.insert_into_table(
-                "experts", expert_data, upsert=True
-            )
+            response = self.supabase.insert_into_table(self.table_name, expert_data)
             if response:
-                print("Expert created/updated successfully.")
                 return response
             else:
-                print("Failed to create/update expert.")
+                self.logger.error("Failed to create/update expert.")
                 return None
         except Exception as e:
-            print(f"Error creating expert: {str(e)}")
+            self.logger.error(f"Error creating expert: {str(e)}")
             return None
 
-    def get_all_experts(self, additional_fields: dict = None) -> list | None:
+    def get_all(self, additional_fields: dict = None) -> list | None:
         try:
             fields = [
                 "id",
@@ -57,19 +57,21 @@ class Experts:
             if additional_fields:
                 fields.extend(additional_fields)
             response = self.supabase.select_from_table(
-                "experts", fields, [("is_active", "eq", True)]
+                self.table_name, fields, [("is_active", "eq", True)]
             )
             if response and len(response) > 0:
                 return response
             else:
-                print("Failed to retrieve expert fields or policy prevented read.")
+                self.logger.error(
+                    "Failed to retrieve expert fields or policy prevented read."
+                )
                 return None
 
         except Exception as e:
-            print(f"Error getting expert fields: {str(e)}")
+            self.logger.error(f"Error getting expert fields: {str(e)}")
             return None
 
-    def get_expert_plus_by_name(
+    def get_plus_by_name(
         self, expert_name: str, optional_fields: dict = None
     ) -> dict | None:
         try:
@@ -77,96 +79,93 @@ class Experts:
             if optional_fields:
                 fields.extend(optional_fields)
             response = self.supabase.select_from_table(
-                "experts",
+                self.table_name,
                 fields,
                 [("expert_name", "eq", expert_name)],
             )
             if response and len(response) > 0:
                 return response[0]
             else:
-                print("Expert not found or policy prevented read.")
+                self.logger.error("Expert not found or policy prevented read.")
                 return None
         except Exception as e:
-            print(f"Error reading expert: {str(e)}")
+            self.logger.error(f"Error reading expert: {str(e)}")
             return None
 
-    def get_expert_by_id(self, expert_id: str) -> dict | None:
+    def get_by_id(self, expert_id: str) -> dict | None:
         try:
             fields = "*"
             response = self.supabase.select_from_table(
-                "experts",
+                self.table_name,
                 fields,
                 [("id", "eq", expert_id)],
             )
             if response and len(response) > 0:
                 return response[0]  # Return the dictionary of the result if successful
             else:
-                print("Expert not found or policy prevented read.")
+                self.logger.error("Expert not found or policy prevented read.")
                 return None
         except Exception as e:
-            print(f"Error reading expert: {str(e)}")
+            self.logger.error(f"Error reading expert: {str(e)}")
             return None
 
-    def update_expert(self, expert_id: str, update_data: dict) -> dict | None:
+    def update(self, expert_id: str, update_data: dict) -> dict | None:
         try:
+            update_data["updated_at"] = "now()"
             response = self.supabase.update_table(
-                "experts", update_data, [("id", "eq", expert_id)]
+                self.table_name, update_data, [("id", "eq", expert_id)]
             )
             if response and len(response) > 0:
-                print("Expert updated successfully.")
                 return response  # Return the entire record if successful
             else:
-                print("Failed to update expert or policy prevented update.")
+                self.logger.error("Failed to update expert or policy prevented update.")
                 return None
         except Exception as e:
-            print(f"Error updating expert: {str(e)}")
+            self.logger.error(f"Error updating expert: {str(e)}")
             return None
 
-    def delete_expert(self, expert_id: str) -> bool:
+    def delete(self, expert_id: str) -> bool:
         try:
             response = self.supabase.delete_from_table(
-                "experts", [("id", "eq", expert_id)]
+                self.table_name, [("id", "eq", expert_id)]
             )
             if response:
-                print("Expert deleted successfully.")
                 return True
             else:
-                print("Failed to delete expert or policy prevented delete.")
+                self.logger.error("Failed to delete expert or policy prevented delete.")
                 return False
         except Exception as e:
-            print(f"Error deleting expert: {str(e)}")
+            self.logger.error(f"Error deleting expert: {str(e)}")
             return False
 
     def add_alias(self, expert_name: str, alias_name: str) -> dict | None:
         try:
             # First check if expert exists
-            expert_data = self.get_expert_plus_by_name(expert_name)
+            expert_data = self.get_plus_by_name(expert_name)
             if not expert_data:
-                print("Expert not found or policy prevented read.")
+                self.logger.error("Expert not found or policy prevented read.")
                 return None
 
             # Check if alias already exists
             existing_alias = self.supabase.select_from_table(
-                "citation_expert_aliases",
+                self.alias_table_name,
                 ["expert_alias"],
                 [("expert_alias", "eq", alias_name)],
             )
 
             if existing_alias:
-                print(f"Alias '{alias_name}' already exists.")
                 return existing_alias[0]  # Return the existing record
 
             # If alias doesn't exist, create it
             response = self.supabase.insert_into_table(
-                "citation_expert_aliases",
+                self.alias_table_name,
                 {"expert_alias": alias_name, "expert_uuid": expert_data["id"]},
             )
 
             if response:
-                print("Alias added successfully.")
                 return response
             else:
-                print("Failed to add alias or policy prevented insert.")
+                self.logger.error("Failed to add alias or policy prevented insert.")
                 return None
 
         except Exception as e:
@@ -175,24 +174,26 @@ class Experts:
 
     def get_aliases_by_expert_name(self, expert_name: str) -> list | None:
         try:
-            expert_data = self.get_expert_plus_by_name(expert_name)
+            expert_data = self.get_plus_by_name(expert_name)
             if not expert_data:
-                print("Expert not found or policy prevented read.")
+                self.logger.error("Expert not found or policy prevented read.")
                 return None
 
             expert_id = expert_data["id"]
             response = self.supabase.select_from_table(
-                "citation_expert_aliases",
+                self.alias_table_name,
                 ["id", "expert_alias"],
                 [("expert_uuid", "eq", expert_id)],
             )
             if response and len(response) > 0:
                 return response
             else:
-                print("No aliases found for expert or policy prevented read.")
+                self.logger.error(
+                    "No aliases found for expert or policy prevented read."
+                )
                 return None
         except Exception as e:
-            print(f"Error getting aliases: {str(e)}")
+            self.logger.error(f"Error getting aliases: {str(e)}")
             return None
 
     def delete_alias(self, alias_id: str) -> bool:
@@ -201,15 +202,14 @@ class Experts:
                 "citation_expert_aliases", [("id", "eq", alias_id)]
             )
             if response:
-                print(f"Alias '{alias_id}' deleted successfully.")
                 return True
             else:
-                print(
+                self.logger.error(
                     f"Failed to delete alias '{alias_id}' or policy prevented delete."
                 )
                 return False
         except Exception as e:
-            print(f"Error deleting alias: {str(e)}")
+            self.logger.error(f"Error deleting alias: {str(e)}")
             return False
 
     def do_crud_test(self):
@@ -235,36 +235,40 @@ class Experts:
             "bio": "This is a test bio",
         }
 
-        test_add = self.add_expert(test_add, additional_fields)
-        print(f"Test add: {test_add}")
+        # test_add = self.add(test_add, additional_fields)
+        # print(f"Test add: {test_add}")
 
-        # Read the expert
+        self.logger.info("Starting CRUD test")
         expert_name = new_expert["expert_name"]
         optional_fields = ["expertise_area", "experience_years", "bio"]
-        expert_data = self.get_expert_plus_by_name(expert_name, optional_fields)
+        expert_data = self.get_plus_by_name(expert_name, optional_fields)
         if expert_data:
-            print(f"Expert data: from get_expert_plus_by_name: {expert_data}")
+            self.logger.info(
+                f"Expert data: from get_expert_plus_by_name: {expert_data}"
+            )
         else:
-            print("Read operation failed.")
+            self.logger.error("Read operation failed.")
 
         # # Update the expert
         expert_id = new_expert["id"]
         update_data = {"experience_years": 11}
-        update_success = self.update_expert(expert_id, update_data)
+        update_success = self.update(expert_id, update_data)
         if update_success:
-            print(f"Update operation successful. Updated data: {update_success}")
+            self.logger.info(
+                f"Update operation successful. Updated data: {update_success}"
+            )
         else:
-            print("Update operation failed.")
+            self.logger.error("Update operation failed.")
 
         expert_id = new_expert["id"]
-        expert_data = self.get_expert_by_id(expert_id)
-        print(f"Expert data: from get_expert_by_id: {expert_data}")
+        expert_data = self.get_by_id(expert_id)
+        self.logger.info(f"Expert data: from get_expert_by_id: {expert_data}")
 
         alias_data = self.add_alias("Abernethy", "Abernathy")
-        print(f"Alias data: {alias_data}")
+        self.logger.info(f"Alias data: {alias_data}")
 
         aliases = self.get_aliases_by_expert_name("Carter")
-        print(f"Aliases: {aliases}")
+        self.logger.info(f"Aliases: {aliases}")
 
         # # Delete the expert
         # delete_success = self.delete_expert(expert_id)
