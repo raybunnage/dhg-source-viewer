@@ -149,13 +149,26 @@ class SupabaseService:
             print(f"Update error: {str(e)}")
             return None
 
-    def insert_into_table(self, table_name: str, insert_fields: dict) -> dict | None:
+    def insert_into_table(
+        self, table_name: str, insert_fields: dict, upsert: bool = False
+    ) -> dict | None:
         """Insert a record and return the created record or None if failed.
+        Args:
+            table_name: The table to insert into
+            insert_fields: The fields to insert
+            upsert: If True, update existing record instead of failing on conflict
         Returns:
-            dict | None: The newly created record with all fields including id, or None if insert failed
+            dict | None: The newly created/updated record with all fields including id, or None if failed
         """
         try:
-            response = self.supabase.table(table_name).insert(insert_fields).execute()
+            query = self.supabase.table(table_name)
+            if upsert:
+                # Use upsert operation - will update if exists, insert if not
+                response = query.upsert(insert_fields).execute()
+            else:
+                # Regular insert - will fail if record exists
+                response = query.insert(insert_fields).execute()
+
             if response.data and len(response.data) > 0:
                 return response.data[0]
             return None

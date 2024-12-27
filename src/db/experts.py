@@ -30,16 +30,17 @@ class Experts:
             if additional_fields:
                 expert_data.update(additional_fields)
 
-            response = self.supabase.insert_into_table("experts", expert_data)
+            # Use upsert=True to update if record exists
+            response = self.supabase.insert_into_table("experts", expert_data, upsert=True)
             if response:
-                print("Expert created successfully.")
+                print("Expert created/updated successfully.")
                 return response
             else:
-                print("Failed to create expert or policy prevented insert.")
+                print("Failed to create/update expert.")
                 return None
         except Exception as e:
             print(f"Error creating expert: {str(e)}")
-            return False
+            return None
 
     def get_all_experts(self, additional_fields: dict = None) -> list | None:
         try:
@@ -68,7 +69,7 @@ class Experts:
 
     def get_expert_plus_by_name(
         self, expert_name: str, optional_fields: dict = None
-    ) -> dict:
+    ) -> dict | None:
         try:
             fields = ["id", "expert_name", "full_name", "starting_ref_id"]
             if optional_fields:
@@ -82,10 +83,10 @@ class Experts:
                 return response[0]
             else:
                 print("Expert not found or policy prevented read.")
-                return {}
+                return None
         except Exception as e:
             print(f"Error reading expert: {str(e)}")
-            return {}
+            return None
 
     def get_expert_by_id(self, expert_id: str) -> dict | None:
         try:
@@ -134,6 +135,45 @@ class Experts:
             print(f"Error deleting expert: {str(e)}")
             return False
 
+    def add_alias(self, expert_name: str, alias_name: str) -> dict | None:
+        try:
+            # First check if expert exists
+            expert_data = self.get_expert_plus_by_name(expert_name)
+            if not expert_data:
+                print("Expert not found or policy prevented read.")
+                return None
+
+            # Check if alias already exists
+            existing_alias = self.supabase.select_from_table(
+                "citation_expert_aliases",
+                ["expert_alias"],
+                [("expert_alias", "eq", alias_name)]
+            )
+            
+            if existing_alias:
+                print(f"Alias '{alias_name}' already exists.")
+                return existing_alias[0]  # Return the existing record
+            
+            # If alias doesn't exist, create it
+            response = self.supabase.insert_into_table(
+                "citation_expert_aliases",
+                {
+                    "expert_alias": alias_name,
+                    "expert_uuid": expert_data["id"]
+                }
+            )
+            
+            if response:
+                print("Alias added successfully.")
+                return response
+            else:
+                print("Failed to add alias or policy prevented insert.")
+                return None
+            
+        except Exception as e:
+            print(f"Error adding alias: {str(e)}")
+            return None
+
     def do_crud_test(self):
         # Create an expert
         new_expert = {
@@ -181,6 +221,10 @@ class Experts:
         expert_id = new_expert["id"]
         expert_data = self.get_expert_by_id(expert_id)
         print(f"Expert data: from get_expert_by_id: {expert_data}")
+
+
+        alias_data = self.add_alias("Abernethy", "Abernathy")
+        print(f"Alias data: {alias_data}")
 
         # # Delete the expert
         # delete_success = self.delete_expert(expert_id)

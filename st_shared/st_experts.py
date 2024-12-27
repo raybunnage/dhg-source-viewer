@@ -34,7 +34,7 @@ def st_manage_experts(set_page_config: bool = True):
     with col1:
         st.sidebar.title("Manage Experts")
         st.sidebar.subheader("Actions")
-        action = st.sidebar.radio("Select Action", ["Add", "Edit", "Delete"])
+        action = st.sidebar.radio("Select Action", ["Add", "Edit", "Delete","Alias"])
 
         if action == "Add":
             st.subheader("Add Expert")
@@ -68,7 +68,7 @@ def st_manage_experts(set_page_config: bool = True):
         elif action == "Edit":
             st.subheader("Edit Expert")
             additional_fields = ["bio", "expertise_area", "experience_years"]
-            experts_list = experts.get_all_experts()
+            experts_list = experts.get_all_experts(additional_fields)
             if not experts_list:
                 st.warning("No experts found in the database")
                 return
@@ -82,6 +82,7 @@ def st_manage_experts(set_page_config: bool = True):
                         expert.get("expertise_area", ""),
                         expert.get("experience_years", 0),
                         expert.get("is_in_core_group", False),
+                        expert.get("email_address", ""),
                     )
                     for expert in experts_list
                 ],
@@ -102,11 +103,14 @@ def st_manage_experts(set_page_config: bool = True):
                 selected_expert_expertise = selected_expert[3]
                 selected_expert_years = selected_expert[4]
                 selected_expert_core_group = selected_expert[5]
-
+                selected_expert_email = selected_expert[6]
                 full_name = st.text_input("Full Name", value=selected_expert[1])
                 bio = st.text_area("Bio", value=selected_expert_bio)
                 expertise_area = st.text_input(
                     "Expertise", value=selected_expert_expertise
+                )
+                email_address = st.text_input(
+                    "Email Address", value=selected_expert_email
                 )
                 experience_years = st.number_input(
                     "Years of Experience",
@@ -125,6 +129,7 @@ def st_manage_experts(set_page_config: bool = True):
                         "expertise_area": expertise_area,
                         "experience_years": experience_years,
                         "is_in_core_group": is_in_core_group,
+                        "email_address": selected_expert_email,
                     }
                     expert = experts.update_expert(selected_expert_id, update_expert)
                     if expert:
@@ -157,6 +162,15 @@ def st_manage_experts(set_page_config: bool = True):
                         st.rerun()  # Updated from st.experimental_rerun()
                     else:
                         st.error(f"Failed to delete expert '{selected_expert_name}'")
+
+        elif action == "Alias":
+            st.subheader("Alias Expert")
+            expert_name = st.text_input("Expert Name")
+            alias_name = st.text_input("Alias Name")
+            if st.button("Add Alias"):
+                result = experts.add_alias(expert_name, alias_name)
+                if result:
+                    st.success(f"Alias '{alias_name}' added successfully")
 
     with col2:
         st.subheader("All Experts")
