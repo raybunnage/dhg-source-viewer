@@ -202,7 +202,7 @@ class Experts(BaseDB):
             # Get aliases for the expert
             result = self.supabase.select_from_table(
                 self.alias_table_name,
-                ["expert_alias"],
+                ["id", "expert_alias"],
                 [("expert_uuid", "eq", expert_data["id"])],
             )
             return result
@@ -281,8 +281,9 @@ class Experts(BaseDB):
             alias_data = self.add_alias("Abernethy", "Abernathy")
             self.logger.info(f"Alias data: {alias_data}")
 
-            aliases = self.get_aliases_by_expert_name("Carter")
-            self.logger.info(f"Number of aliases: {len(aliases)}")
+            aliases = self.get_aliases_by_expert_name("Bunnage")
+            self.logger.info(f"Aliases: {aliases}")
+            # self.logger.info(f"Number of aliases: {len(aliases)}")
 
             # Add null check before trying to delete
             if alias_data and "id" in alias_data:

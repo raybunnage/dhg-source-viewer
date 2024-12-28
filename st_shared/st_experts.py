@@ -188,30 +188,34 @@ def st_manage_experts(set_page_config: bool = True):
             aliases = experts.get_aliases_by_expert_name(selected_expert_name)
             if aliases:
                 st.subheader(f"Aliases for {selected_expert_name}")
-                # Convert aliases to a pandas DataFrame and select specific columns
+                # Convert aliases to a pandas DataFrame and display available columns
                 df = pd.DataFrame(aliases)
+                df = df[
+                    ["id", "expert_alias"]
+                ]  # Select only id and expert_alias columns
                 st.dataframe(
-                    df[["id", "expert_alias"]],
+                    df,
                     hide_index=True,
+                    column_config={"expert_alias": st.column_config.Column(width=300)},
                 )
+
+                alias_id_to_delete = st.number_input(
+                    "Enter Alias ID to Delete", min_value=0, step=1
+                )
+                if alias_id_to_delete:
+                    if st.button("Delete Alias"):
+                        result = experts.delete_alias(alias_id_to_delete)
+                        if result:
+                            st.success(
+                                f"Alias with ID '{alias_id_to_delete}' deleted successfully"
+                            )
+                            st.rerun()  # Refresh the page after deleting alias
+                        else:
+                            st.error(
+                                f"Failed to delete alias with ID '{alias_id_to_delete}'"
+                            )
             else:
                 st.warning(f"No aliases found for {selected_expert_name}")
-
-            alias_id_to_delete = st.number_input(
-                "Enter Alias ID to Delete", min_value=0, step=1
-            )
-            if alias_id_to_delete:
-                if st.button("Delete Alias"):
-                    result = experts.delete_alias(alias_id_to_delete)
-                    if result:
-                        st.success(
-                            f"Alias with ID '{alias_id_to_delete}' deleted successfully"
-                        )
-                        st.rerun()  # Refresh the page after deleting alias
-                    else:
-                        st.error(
-                            f"Failed to delete alias with ID '{alias_id_to_delete}'"
-                        )
 
     with col2:
         st.subheader("All Experts")
