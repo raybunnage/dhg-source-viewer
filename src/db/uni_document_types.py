@@ -19,6 +19,7 @@ class DocumentTypes(BaseDB):
             raise ValueError("Supabase client cannot be None")
         self.supabase = supabase_client
         self.table_name = "uni_document_types"
+        self.alias_table_name = "document_type_aliases"
         # Verify connection on initialization
         self._verify_connection()
 
@@ -54,7 +55,6 @@ class DocumentTypes(BaseDB):
         is_ai_generated: bool = False,
         additional_fields: dict = None,
     ) -> dict | None:
-        
         if not document_type:
             raise ValueError("document_type is required parameters")
 
@@ -175,6 +175,28 @@ class DocumentTypes(BaseDB):
             return True
 
         return self._handle_db_operation("delete", _delete_operation)
+
+    def get_aliases_by_document_type_name(self, document_type_name: str) -> list | None:
+        if not document_type_name:
+            raise ValueError("document_type_name is a required parameter")
+
+        def _get_aliases_by_expert_name_operation():
+            document_type_data = self.get_plus_by_name(document_type_name)
+            if not document_type_data:
+                self.logger.error("Document type not found or policy prevented read.")
+                return None
+
+            # Get aliases for the expert
+            result = self.supabase.select_from_table(
+                self.alias_table_name,
+                ["id", "alias_name"],
+                [("document_type_uuid", "eq", document_type_data["id"])],
+            )
+            return result
+
+        return self._handle_db_operation(
+            "get aliases by expert name", _get_aliases_by_expert_name_operation
+        )
 
     def do_crud_test(self):
         def _crud_test_operation():
