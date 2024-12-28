@@ -172,7 +172,7 @@ class Experts(BaseDB):
             # Check if alias already exists
             existing_alias = self.supabase.select_from_table(
                 self.alias_table_name,
-                ["expert_alias"],
+                ["id", "expert_alias"],
                 [("expert_alias", "eq", alias_name)],
             )
 
@@ -216,12 +216,22 @@ class Experts(BaseDB):
             raise ValueError("alias_id is a required parameter")
 
         def _delete_alias_operation():
+            # Check if alias exists
+            existing_alias = self.supabase.select_from_table(
+                self.alias_table_name, ["id"], [("id", "eq", alias_id)]
+            )
+
+            if not existing_alias:
+                # If alias doesn't exist, return True since the end state is what was desired
+                self.logger.info(
+                    f"Alias with id {alias_id} not found - already deleted or never existed"
+                )
+                return True
+
             result = self.supabase.delete_from_table(
                 self.alias_table_name, [("id", "eq", alias_id)]
             )
-            if not result or len(result) == 0:
-                raise ValueError("Failed to delete alias")
-            return True
+            return result
 
         return self._handle_db_operation("delete alias", _delete_alias_operation)
 
@@ -272,10 +282,14 @@ class Experts(BaseDB):
             self.logger.info(f"Alias data: {alias_data}")
 
             aliases = self.get_aliases_by_expert_name("Carter")
-            self.logger.info(f"Aliases: {aliases}")
+            self.logger.info(f"Number of aliases: {len(aliases)}")
 
-            # self.delete_alias(alias_data["id"])
-            # self.logger.info("Alias deleted")
+            # Add null check before trying to delete
+            if alias_data and "id" in alias_data:
+                self.delete_alias(alias_data["id"])
+                self.logger.info("Alias deleted")
+            else:
+                self.logger.warning("No alias ID found - skipping delete operation")
 
         return self._handle_db_operation("CRUD test", _crud_test_operation)
 
