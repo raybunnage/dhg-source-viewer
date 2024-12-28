@@ -14,9 +14,34 @@ from src.services.supabase_service import SupabaseService
 class Experts(BaseDB):
     def __init__(self, supabase_client):
         super().__init__()
+        if not supabase_client:
+            raise ValueError("Supabase client cannot be None")
         self.supabase = supabase_client
         self.table_name = "experts"
         self.alias_table_name = "citation_expert_aliases"
+        self._verify_connection()
+
+    def _verify_connection(self):
+        """Verify the Supabase connection is active"""
+        try:
+            # Simple query to test connection without limit parameter
+            self.supabase.select_from_table(self.table_name, ["id"], [])
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to verify database connection: {str(e)}")
+            raise ConnectionError("Could not establish database connection") from e
+
+    def _handle_db_operation(
+        self, operation_name: str, operation_func, *args, **kwargs
+    ):
+        """Generic error handler for database operations"""
+        try:
+            if not self.supabase:
+                raise ConnectionError("No database connection available")
+            return operation_func(*args, **kwargs)
+        except Exception as e:
+            self.logger.error(f"Error in {operation_name}: {str(e)}")
+            raise
 
     def add(
         self,
@@ -25,7 +50,11 @@ class Experts(BaseDB):
         email_address: str = None,
         additional_fields: dict = None,
     ) -> dict | None:
-        try:
+        # Validate required parameters
+        if not expert_name or not full_name:
+            raise ValueError("expert_name and full_name are required parameters")
+
+        def _add_operation():
             expert_data = {
                 "expert_name": expert_name,
                 "full_name": full_name,
@@ -34,18 +63,15 @@ class Experts(BaseDB):
             if additional_fields:
                 expert_data.update(additional_fields)
 
-            response = self.supabase.insert_into_table(self.table_name, expert_data)
-            if response:
-                return response
-            else:
-                self.logger.error("Failed to create/update expert.")
-                return None
-        except Exception as e:
-            self.logger.error(f"Error creating expert: {str(e)}")
-            return None
+            result = self.supabase.insert_into_table(self.table_name, expert_data)
+            if not result:
+                raise ValueError("Failed to add expert")
+            return result
+
+        return self._handle_db_operation("create expert", _add_operation)
 
     def get_all(self, additional_fields: dict = None) -> list | None:
-        try:
+        def _get_all_operation():
             fields = [
                 "id",
                 "user_id",
@@ -56,91 +82,88 @@ class Experts(BaseDB):
             ]
             if additional_fields:
                 fields.extend(additional_fields)
-            response = self.supabase.select_from_table(
+            result = self.supabase.select_from_table(
                 self.table_name, fields, [("is_active", "eq", True)]
             )
-            if response and len(response) > 0:
-                return response
-            else:
-                self.logger.error(
-                    "Failed to retrieve expert fields or policy prevented read."
-                )
-                return None
+            if not result or len(result) == 0:
+                raise ValueError("No experts found or policy prevented read")
+            return result
 
-        except Exception as e:
-            self.logger.error(f"Error getting expert fields: {str(e)}")
-            return None
+        return self._handle_db_operation("get all experts", _get_all_operation)
 
     def get_plus_by_name(
         self, expert_name: str, optional_fields: dict = None
     ) -> dict | None:
-        try:
+        if not expert_name:
+            raise ValueError("expert_name is a required parameter")
+
+        def _get_plus_by_name_operation():
             fields = ["id", "expert_name", "full_name", "starting_ref_id"]
             if optional_fields:
                 fields.extend(optional_fields)
-            response = self.supabase.select_from_table(
+
+            result = self.supabase.select_from_table(
                 self.table_name,
                 fields,
                 [("expert_name", "eq", expert_name)],
             )
-            if response and len(response) > 0:
-                return response[0]
-            else:
-                self.logger.error("Expert not found or policy prevented read.")
-                return None
-        except Exception as e:
-            self.logger.error(f"Error reading expert: {str(e)}")
-            return None
+            if not result or len(result) == 0:
+                raise ValueError("Expert not found")
+            return result[0]
+
+        return self._handle_db_operation(
+            "get expert by name", _get_plus_by_name_operation
+        )
 
     def get_by_id(self, expert_id: str) -> dict | None:
-        try:
+        if not expert_id:
+            raise ValueError("expert_id is a required parameter")
+
+        def _get_by_id_operation():
             fields = "*"
-            response = self.supabase.select_from_table(
-                self.table_name,
-                fields,
-                [("id", "eq", expert_id)],
+            result = self.supabase.select_from_table(
+                self.table_name, fields, [("id", "eq", expert_id)]
             )
-            if response and len(response) > 0:
-                return response[0]  # Return the dictionary of the result if successful
-            else:
-                self.logger.error("Expert not found or policy prevented read.")
-                return None
-        except Exception as e:
-            self.logger.error(f"Error reading expert: {str(e)}")
-            return None
+            if not result or len(result) == 0:
+                raise ValueError("Expert not found")
+            return result[0]
+
+        return self._handle_db_operation("get expert by id", _get_by_id_operation)
 
     def update(self, expert_id: str, update_data: dict) -> dict | None:
-        try:
+        if not expert_id or not update_data:
+            raise ValueError("expert_id and update_data are required parameters")
+
+        def _update_operation():
             update_data["updated_at"] = "now()"
-            response = self.supabase.update_table(
+            result = self.supabase.update_table(
                 self.table_name, update_data, [("id", "eq", expert_id)]
             )
-            if response and len(response) > 0:
-                return response  # Return the entire record if successful
-            else:
-                self.logger.error("Failed to update expert or policy prevented update.")
-                return None
-        except Exception as e:
-            self.logger.error(f"Error updating expert: {str(e)}")
-            return None
+            if not result or len(result) == 0:
+                raise ValueError("Failed to update expert")
+            return result
+
+        return self._handle_db_operation("update expert", _update_operation)
 
     def delete(self, expert_id: str) -> bool:
-        try:
-            response = self.supabase.delete_from_table(
+        if not expert_id:
+            raise ValueError("expert_id is a required parameter")
+
+        def _delete_operation():
+            result = self.supabase.delete_from_table(
                 self.table_name, [("id", "eq", expert_id)]
             )
-            if response:
-                return True
-            else:
-                self.logger.error("Failed to delete expert or policy prevented delete.")
-                return False
-        except Exception as e:
-            self.logger.error(f"Error deleting expert: {str(e)}")
-            return False
+            if not result or len(result) == 0:
+                raise ValueError("Failed to delete expert")
+            return True
+
+        return self._handle_db_operation("delete expert", _delete_operation)
 
     def add_alias(self, expert_name: str, alias_name: str) -> dict | None:
-        try:
-            # First check if expert exists
+        if not expert_name or not alias_name:
+            raise ValueError("expert_name and alias_name are required parameters")
+
+        def _add_alias_operation():
             expert_data = self.get_plus_by_name(expert_name)
             if not expert_data:
                 self.logger.error("Expert not found or policy prevented read.")
@@ -154,139 +177,134 @@ class Experts(BaseDB):
             )
 
             if existing_alias:
-                return existing_alias[0]  # Return the existing record
+                return existing_alias[0]
 
-            # If alias doesn't exist, create it
-            response = self.supabase.insert_into_table(
+            result = self.supabase.insert_into_table(
                 self.alias_table_name,
                 {"expert_alias": alias_name, "expert_uuid": expert_data["id"]},
             )
+            if not result:
+                raise ValueError("Failed to add alias")
+            return result
 
-            if response:
-                return response
-            else:
-                self.logger.error("Failed to add alias or policy prevented insert.")
-                return None
-
-        except Exception as e:
-            print(f"Error adding alias: {str(e)}")
-            return None
+        return self._handle_db_operation("add alias", _add_alias_operation)
 
     def get_aliases_by_expert_name(self, expert_name: str) -> list | None:
-        try:
+        if not expert_name:
+            raise ValueError("expert_name is a required parameter")
+
+        def _get_aliases_by_expert_name_operation():
             expert_data = self.get_plus_by_name(expert_name)
             if not expert_data:
                 self.logger.error("Expert not found or policy prevented read.")
                 return None
 
-            expert_id = expert_data["id"]
-            response = self.supabase.select_from_table(
+            # Get aliases for the expert
+            result = self.supabase.select_from_table(
                 self.alias_table_name,
-                ["id", "expert_alias"],
-                [("expert_uuid", "eq", expert_id)],
+                ["expert_alias"],
+                [("expert_uuid", "eq", expert_data["id"])],
             )
-            if response and len(response) > 0:
-                return response
-            else:
-                self.logger.error(
-                    "No aliases found for expert or policy prevented read."
-                )
-                return None
-        except Exception as e:
-            self.logger.error(f"Error getting aliases: {str(e)}")
-            return None
+            return result
+
+        return self._handle_db_operation(
+            "get aliases by expert name", _get_aliases_by_expert_name_operation
+        )
 
     def delete_alias(self, alias_id: str) -> bool:
-        try:
-            response = self.supabase.delete_from_table(
-                "citation_expert_aliases", [("id", "eq", alias_id)]
+        if not alias_id:
+            raise ValueError("alias_id is a required parameter")
+
+        def _delete_alias_operation():
+            result = self.supabase.delete_from_table(
+                self.alias_table_name, [("id", "eq", alias_id)]
             )
-            if response:
-                return True
-            else:
-                self.logger.error(
-                    f"Failed to delete alias '{alias_id}' or policy prevented delete."
-                )
-                return False
-        except Exception as e:
-            self.logger.error(f"Error deleting alias: {str(e)}")
-            return False
+            if not result or len(result) == 0:
+                raise ValueError("Failed to delete alias")
+            return True
+
+        return self._handle_db_operation("delete alias", _delete_alias_operation)
 
     def do_crud_test(self):
-        # Create an expert
-        new_expert = {
-            "id": "34acaa61-7fb4-4c02-b463-a55128e354f3",  # Naviaux
-            "expert_name": "Naviaux",
-            "full_name": "Bob Naviaux",
-            "starting_ref_id": 456,
-            "expertise_area": "Machine Learning",
-            "experience_years": 10,
-            "user_id": "34acaa61-7fb4-4c02-b463-a55128e354f3",
-        }
+        def _crud_test_operation():
+            self.logger.info("Starting CRUD test")
 
-        test_add = {
-            "expert_name": "ExpertTest",
-            "full_name": "Test Full Name",
-            "email_address": "test@test.com",
-        }
-        additional_fields = {
-            "expertise_area": "Machine Learning",
-            "experience_years": 10,
-            "bio": "This is a test bio",
-        }
+            # Test adding an expert
+            test_add = {
+                "expert_name": "ExpertTest",
+                "full_name": "Test Full Name",
+                "email_address": "test@test.com",
+            }
+            additional_fields = {
+                "expertise_area": "Machine Learning",
+                "experience_years": 10,
+                "bio": "This is a test bio",
+            }
 
-        # test_add = self.add(test_add, additional_fields)
-        # print(f"Test add: {test_add}")
+            # Test get operations
+            expert_name = "Naviaux"
+            optional_fields = ["expertise_area", "experience_years", "bio"]
+            expert_data = self.get_plus_by_name(expert_name, optional_fields)
+            if expert_data:
+                self.logger.info(
+                    f"Expert data from get_expert_plus_by_name: {expert_data}"
+                )
+            else:
+                self.logger.error("Read operation failed.")
 
-        self.logger.info("Starting CRUD test")
-        expert_name = new_expert["expert_name"]
-        optional_fields = ["expertise_area", "experience_years", "bio"]
-        expert_data = self.get_plus_by_name(expert_name, optional_fields)
-        if expert_data:
-            self.logger.info(
-                f"Expert data: from get_expert_plus_by_name: {expert_data}"
-            )
-        else:
-            self.logger.error("Read operation failed.")
+            # Test update operation
+            expert_id = "34acaa61-7fb4-4c02-b463-a55128e354f3"
+            update_data = {"experience_years": 11}
+            update_success = self.update(expert_id, update_data)
+            if update_success:
+                self.logger.info(
+                    f"Update operation successful. Updated data: {update_success}"
+                )
+            else:
+                self.logger.error("Update operation failed.")
 
-        # # Update the expert
-        expert_id = new_expert["id"]
-        update_data = {"experience_years": 11}
-        update_success = self.update(expert_id, update_data)
-        if update_success:
-            self.logger.info(
-                f"Update operation successful. Updated data: {update_success}"
-            )
-        else:
-            self.logger.error("Update operation failed.")
+            # Test get by ID
+            expert_data = self.get_by_id(expert_id)
+            self.logger.info(f"Expert data from get_expert_by_id: {expert_data}")
 
-        expert_id = new_expert["id"]
-        expert_data = self.get_by_id(expert_id)
-        self.logger.info(f"Expert data: from get_expert_by_id: {expert_data}")
+            # Test alias operations
+            alias_data = self.add_alias("Abernethy", "Abernathy")
+            self.logger.info(f"Alias data: {alias_data}")
 
-        alias_data = self.add_alias("Abernethy", "Abernathy")
-        self.logger.info(f"Alias data: {alias_data}")
+            aliases = self.get_aliases_by_expert_name("Carter")
+            self.logger.info(f"Aliases: {aliases}")
 
-        aliases = self.get_aliases_by_expert_name("Carter")
-        self.logger.info(f"Aliases: {aliases}")
+            # self.delete_alias(alias_data["id"])
+            # self.logger.info("Alias deleted")
 
-        # # Delete the expert
-        # delete_success = self.delete_expert(expert_id)
-        # if delete_success:
-        #     print("Delete operation successful.")
-        # else:
-        #     print("Delete operation failed.")
+        return self._handle_db_operation("CRUD test", _crud_test_operation)
 
 
 def test_crud_operations():
-    # Initialize  load_dotenv()
+    # Initialize and load environment variables
     load_dotenv()
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_KEY")
+
+    # Verify environment variables are present
+    if not url or not key:
+        raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY environment variables")
+
+    # Initialize Supabase client
     supabase = SupabaseService(url, key)
+
+    # Verify login credentials
     email = os.getenv("TEST_EMAIL")
     password = os.getenv("TEST_PASSWORD")
-    supabase.login(email, password)
+    if not email or not password:
+        raise ValueError("Missing TEST_EMAIL or TEST_PASSWORD environment variables")
+
+    # Login and verify success
+    login_result = supabase.login(email, password)
+    if not login_result:
+        raise ValueError("Failed to login to Supabase")
+
+    # Now create the expert service
     expert_service = Experts(supabase)
     expert_service.do_crud_test()
 

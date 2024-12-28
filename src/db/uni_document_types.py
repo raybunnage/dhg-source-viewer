@@ -1,14 +1,14 @@
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+from typing import Optional
 
 # Add the project root directory to Python path
 project_root = str(Path(__file__).parent.parent.parent)
 sys.path.append(project_root)
 
 from src.services.supabase_service import SupabaseService
-from dotenv import load_dotenv
-from typing import Optional
 from src.db.base_db import BaseDB
 
 
@@ -53,7 +53,11 @@ class DocumentTypes(BaseDB):
         category: str = None,
         is_ai_generated: bool = False,
         additional_fields: dict = None,
-    ) -> dict:
+    ) -> dict | None:
+        
+        if not document_type:
+            raise ValueError("document_type is required parameters")
+
         def _add_operation():
             document_type_data = {
                 "document_type": document_type,
@@ -76,6 +80,9 @@ class DocumentTypes(BaseDB):
         return self._handle_db_operation("add_document_type", _add_operation)
 
     def get_by_id(self, document_type_id: str) -> dict:
+        if not document_type_id:
+            raise ValueError("document_type_id is required parameter")
+
         def _get_by_id_operation():
             fields = "*"
             result = self.supabase.select_from_table(
@@ -88,6 +95,9 @@ class DocumentTypes(BaseDB):
         return self._handle_db_operation("get_by_id", _get_by_id_operation)
 
     def update(self, document_type_id: str, update_data: dict) -> dict:
+        if not document_type_id or not update_data:
+            raise ValueError("document_type_id and update_data are required parameters")
+
         def _update_operation():
             update_data["updated_at"] = "now()"
             result = self.supabase.update_table(
@@ -124,6 +134,9 @@ class DocumentTypes(BaseDB):
     def get_plus_by_name(
         self, document_type_name: str, optional_fields: dict = None
     ) -> dict:
+        if not document_type_name:
+            raise ValueError("document_type_name is required parameter")
+
         def _get_plus_by_name_operation():
             fields = [
                 "id",
@@ -150,6 +163,9 @@ class DocumentTypes(BaseDB):
         )
 
     def delete(self, document_type_id: str) -> bool:
+        if not document_type_id:
+            raise ValueError("document_type_id is required parameter")
+
         def _delete_operation():
             result = self.supabase.delete_from_table(
                 self.table_name, [("id", "eq", document_type_id)]
@@ -162,6 +178,7 @@ class DocumentTypes(BaseDB):
 
     def do_crud_test(self):
         def _crud_test_operation():
+            self.logger.info("Starting CRUD test")
             # Create a document type
             new_type = {
                 "document_type": "Test Document",
