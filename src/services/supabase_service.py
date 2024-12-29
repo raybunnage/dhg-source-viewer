@@ -2,6 +2,13 @@ import os
 from dotenv import load_dotenv
 from supabase import create_client
 from supabase import Client
+from datetime import datetime
+
+from pathlib import Path
+import sys
+
+project_root = str(Path(__file__).parent.parent.parent)
+sys.path.append(project_root)
 from src.db.base_db import BaseDB
 
 
@@ -367,8 +374,71 @@ def select_from_table():
     print(data)
 
 
+def insert_test_emails():
+    load_dotenv()
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_KEY")
+    supabase = SupabaseService(url, key)
+    email = os.getenv("TEST_EMAIL")
+    password = os.getenv("TEST_PASSWORD")
+    supabase.login(email, password)
+
+    # Test single record insert
+    single_email = {
+        "email_id": "1",
+        "subject": "Test Email 1",
+        "content": "This is a test email body 1",
+        "sender": "sender1@test.com",
+        "to_recipients": "recipient1@test.com",
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+    try:
+        response = supabase.insert_into_table("temp_emails", single_email)
+        if response:
+            print("Single test email inserted successfully")
+            print(f"Inserted email data: {response}")
+        else:
+            print("Failed to insert single test email")
+    except Exception as e:
+        print(f"Error inserting single test email: {str(e)}")
+
+    # Test multiple record insert
+    test_emails = [
+        {
+            "email_id": "2",
+            "subject": "Test Email 2",
+            "content": "This is a test email body 2",
+            "sender": "sender2@test.com",
+            "to_recipients": "recipient2@test.com",
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        },
+        {
+            "email_id": "3",
+            "subject": "Test Email 3",
+            "content": "This is a test email body 3",
+            "sender": "sender3@test.com",
+            "to_recipients": "recipient3@test.com",
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        },
+    ]
+
+    try:
+        response = supabase.insert_into_table("temp_emails", test_emails)
+        if response:
+            print("Multiple test emails inserted successfully")
+            print(f"Inserted email data: {response}")
+        else:
+            print("Failed to insert multiple test emails")
+    except Exception as e:
+        print(f"Error inserting multiple test emails: {str(e)}")
+
+
 if __name__ == "__main__":
-    select_from_table()
+    insert_test_emails()
 
     # def __init__(self, supabase_client: Client):
     #     if not isinstance(supabase_client, Client):
