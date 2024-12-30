@@ -2,23 +2,34 @@ import streamlit as st
 from pathlib import Path
 import sys
 import pandas as pd
+import psycopg2
+from typing import Dict, List, Set
+from collections import defaultdict
 
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
 from src.services.supabase_service import SupabaseService
 from src.db.experts import Experts
 
+# Setup logging at the top of the file
+logger = logging.getLogger(__name__)
+
 
 @st.cache_resource
 def get_experts_service():
     """Initialize SupabaseService and Experts as a cached resource"""
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
-    supabase = SupabaseService(url, key)
-    email = st.secrets["TEST_EMAIL"]
-    password = st.secrets["TEST_PASSWORD"]
-    supabase.login(email, password)
-    return Experts(supabase)
+    try:
+        url = st.secrets["SUPABASE_URL"]
+        key = st.secrets["SUPABASE_KEY"]
+        supabase = SupabaseService(url, key)
+        email = st.secrets["TEST_EMAIL"]
+        password = st.secrets["TEST_PASSWORD"]
+        supabase.login(email, password)
+        logger.info("Successfully initialized experts service")
+        return Experts(supabase)
+    except Exception as e:
+        logger.error(f"Failed to initialize experts service: {str(e)}")
+        raise
 
 
 def st_manage_experts(set_page_config: bool = True):
@@ -54,16 +65,25 @@ def st_manage_experts(set_page_config: bool = True):
                     "experience_years": years_experience,
                     "is_in_core_group": is_in_core_group,
                 }
-                result = experts.add(
-                    expert_name,
-                    full_name,
-                    email_address,
-                    additional_fields,
-                )
-                if result:
-                    st.success(f"Expert '{expert_name}' added successfully")
-                else:
-                    st.error(f"Failed to add expert for {expert_name}")
+                logger.info(f"Attempting to add new expert: {expert_name}")
+                try:
+                    result = experts.add(
+                        expert_name,
+                        full_name,
+                        email_address,
+                        additional_fields,
+                    )
+                    if result:
+                        logger.info(f"Successfully added expert: {expert_name}")
+                        st.success(f"Expert '{expert_name}' added successfully")
+                    else:
+                        logger.error(f"Failed to add expert: {expert_name}")
+                        st.error(f"Failed to add expert for {expert_name}")
+                except Exception as e:
+                    logger.exception(
+                        f"Exception while adding expert {expert_name}: {str(e)}"
+                    )
+                    st.error(f"Error adding expert: {str(e)}")
 
         elif action == "Edit":
             st.subheader("Edit Expert")
@@ -154,14 +174,29 @@ def st_manage_experts(set_page_config: bool = True):
             )
             if selected_expert_name:
                 if st.button("Delete Expert"):
-                    result = experts.delete(selected_expert_id)
-                    if result is True:
-                        st.success(
-                            f"Expert '{selected_expert_name}' deleted successfully"
+                    logger.info(f"Attempting to delete expert: {selected_expert_name}")
+                    try:
+                        result = experts.delete(selected_expert_id)
+                        if result is True:
+                            logger.info(
+                                f"Successfully deleted expert: {selected_expert_name}"
+                            )
+                            st.success(
+                                f"Expert '{selected_expert_name}' deleted successfully"
+                            )
+                            st.rerun()
+                        else:
+                            logger.error(
+                                f"Failed to delete expert: {selected_expert_name}"
+                            )
+                            st.error(
+                                f"Failed to delete expert '{selected_expert_name}'"
+                            )
+                    except Exception as e:
+                        logger.exception(
+                            f"Exception while deleting expert {selected_expert_name}: {str(e)}"
                         )
-                        st.rerun()  # Updated from st.experimental_rerun()
-                    else:
-                        st.error(f"Failed to delete expert '{selected_expert_name}'")
+                        st.error(f"Error deleting expert: {str(e)}")
 
         elif action == "Alias":
             st.subheader("Alias Expert")

@@ -534,50 +534,7 @@ class Emails(BaseDB):
             return result[0]["id"] if result else None
         return [record["id"] for record in result] if result else []
 
-    def import_csv_in_batches(self, csv_file_path: str, batch_size: int = 2) -> None:
-        """
-        Imports a CSV file into Supabase in smaller batches to avoid timeout issues.
-
-        Args:
-            csv_file_path (str): Path to the CSV file
-            batch_size (int): Number of records to process in each batch
-        """
-        # Read the CSV file
-        df = pd.read_csv(csv_file_path)
-        total_records = len(df)
-
-        # Calculate number of batches
-        num_batches = (total_records + batch_size - 1) // batch_size
-
-        self.logger.info(f"Processing {total_records} records in {num_batches} batches")
-
-        for i in range(num_batches):
-            start_idx = i * batch_size
-            end_idx = min((i + 1) * batch_size, total_records)
-
-            batch_df = df.iloc[start_idx:end_idx]
-
-            self.logger.info(
-                f"Processing batch {i+1}/{num_batches} (records {start_idx+1} to {end_idx})"
-            )
-
-            try:
-                # Convert DataFrame batch to list of dictionaries
-                records = batch_df.to_dict("records")
-
-                # Insert batch into Supabase
-                result = self.supabase.insert_into_table(self.table_name, records)
-
-                if result:
-                    self.logger.info(f"Successfully inserted batch {i+1}")
-                else:
-                    self.logger.error(f"Failed to insert batch {i+1}")
-
-            except Exception as e:
-                self.logger.error(f"Error processing batch {i+1}: {e}")
-
-            # Optional: Add a small delay between batches to prevent rate limiting
-            time.sleep(1)
+   
 
 
 if __name__ == "__main__":

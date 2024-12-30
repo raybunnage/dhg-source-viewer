@@ -4,25 +4,31 @@ import sqlite3
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+
 project_root = str(Path(__file__).parent.parent.parent)
 sys.path.append(project_root)
 
 from src.services.supabase_service import SupabaseService
 
 
-
-
-def migrate_emails_to_supabase():
-    # Connect to SQLite
-    sqlite_conn = sqlite3.connect("/Users/raybunnage/Documents/github/dhg-knowledge-tool-2/DynamicHealing.db")
-    sqlite_cursor = sqlite_conn.cursor()
-
+def get_supabase_client():
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_KEY")
     supabase = SupabaseService(url, key)
     email = os.getenv("TEST_EMAIL")
     password = os.getenv("TEST_PASSWORD")
     supabase.login(email, password)
+    return supabase
+
+
+def migrate_emails_to_supabase():
+    # Connect to SQLite
+    sqlite_conn = sqlite3.connect(
+        "/Users/raybunnage/Documents/github/dhg-knowledge-tool-2/DynamicHealing.db"
+    )
+    sqlite_cursor = sqlite_conn.cursor()
+
+    supabase = get_supabase_client()
     # Get Supabase client
 
     # Fetch all emails from SQLite
@@ -32,17 +38,16 @@ def migrate_emails_to_supabase():
         FROM emails
     """)
 
-# CREATE TABLE emails (
-#         email_id INTEGER PRIMARY KEY AUTOINCREMENT,
-#         date DATETIME,
-#         sender TEXT,
-#         subject TEXT,
-#         to_recipients TEXT,
-#         content TEXT,
-#         attachment_cnt INTEGER,
-#         url_cnt INTEGER
+    # CREATE TABLE emails (
+    #         email_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    #         date DATETIME,
+    #         sender TEXT,
+    #         subject TEXT,
+    #         to_recipients TEXT,
+    #         content TEXT,
+    #         attachment_cnt INTEGER,
+    #         url_cnt INTEGER
     # , is_ai_process_for_concepts INTEGER, contents_length INTEGER, is_in_contents INTEGER, is_in_concepts INTEGER, created_at TIMESTAMP, is_valid INTEGER)
-
 
     # Convert to list of dictionaries
     emails = []
@@ -69,7 +74,7 @@ def migrate_emails_to_supabase():
     BATCH_SIZE = 100
     for i in range(0, len(emails), BATCH_SIZE):
         batch = emails[i : i + BATCH_SIZE]
-        result = supabase.insert_into_table("temp_emails", batch)
+        result = supabase.insert_into_table("emails", batch)
         if result:
             print(len(result))
         print(f"Inserted batch {i//BATCH_SIZE + 1} of {len(emails)//BATCH_SIZE + 1}")
@@ -108,6 +113,33 @@ def migrate_attachments_to_supabase():
         )
 
     sqlite_conn.close()
+
+
+# CREATE TABLE "urls" (
+# 	"url_id"	INTEGER,
+# 	"url"	TEXT UNIQUE,
+# 	"email_ids_count"	INTEGER,
+# 	"email_ids_text"	TEXT,
+# 	"earliest_id_datetime"	DATETIME,
+# 	"latest_id_datetime"	DATETIME,
+# 	"email_senders"	TEXT,
+# 	"email_subjects"	TEXT,
+# 	"is_process_concepts_with_ai"	INTEGER,
+# 	"is_openable_url"	INTEGER,
+# 	"article_year"	INTEGER,
+# 	"article_month"	INTEGER,
+# 	"article_day"	INTEGER,
+# 	"title"	TEXT,
+# 	"authors"	TEXT,
+# 	"summary"	TEXT,
+# 	"keywords"	TEXT,
+# 	"url_source"	TEXT,
+# 	"url_type"	TEXT,
+# 	"created_at"	TIMESTAMP,
+# 	"is_in_source"	INTEGER,
+# 	"is_extract_concepts_from_url"	INTEGER,
+# 	PRIMARY KEY("url_id" AUTOINCREMENT)
+# )
 
 
 def migrate_urls_to_supabase():
