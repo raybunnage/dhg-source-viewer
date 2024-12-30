@@ -291,3 +291,12 @@ if __name__ == "__main__":
                             print(item["sql"].strip())
                     else:
                         print(f"- {item}")
+
+
+# def get_test_users(self):
+#         # The client automatically handles authentication after login
+#         return self.supabase.table("test").select("*").execute()
+
+#     def get_todos(self):
+#         data = self.supabase.table("todos").select("*").execute()
+#         return data

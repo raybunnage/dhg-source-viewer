@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
-from supabase import create_client
-from supabase import Client
+from supabase import create_client, AsyncClient
 from datetime import datetime
 
 from pathlib import Path
@@ -20,29 +19,23 @@ class SupabaseService(BaseDB):
         self._init_client()
 
     def _init_client(self) -> None:
-        """Initialize the Supabase client with basic retry logic"""
+        """Initialize the Supabase async client"""
         try:
-            self._supabase = create_client(self.url, self.api_key)
+            self._supabase = AsyncClient(self.url, self.api_key)
         except Exception as e:
             self.logger.error(f"Failed to initialize Supabase client: {str(e)}")
             raise
 
     @property
-    def supabase(self) -> Client:
+    def supabase(self) -> AsyncClient:
         """Ensure we always have a valid Supabase client."""
-        if not hasattr(self, "_supabase") or not isinstance(self._supabase, Client):
+        if not hasattr(self, "_supabase") or not isinstance(
+            self._supabase, AsyncClient
+        ):
             raise RuntimeError("Supabase client not properly initialized")
         return self._supabase
 
-    def get_test_users(self):
-        # The client automatically handles authentication after login
-        return self.supabase.table("test").select("*").execute()
-
-    def get_todos(self):
-        data = self.supabase.table("todos").select("*").execute()
-        return data
-
-    def select_from_table(
+    async def select_from_table(
         self, table_name: str, fields: dict, where_filters: list = None
     ):
         if not table_name:
@@ -98,7 +91,7 @@ class SupabaseService(BaseDB):
                     else:
                         raise ValueError(f"Unsupported operator: {operator}")
 
-            response = query.execute()
+            response = await query.execute()
             if not response or not hasattr(response, "data"):
                 self.logger.error("Invalid response format from Supabase")
                 return None
@@ -107,7 +100,7 @@ class SupabaseService(BaseDB):
             self.logger.error(f"Select error: {str(e)}")
             return None
 
-    def update_table(
+    async def update_table(
         self, table_name: str, update_fields: dict, where_filters: list
     ) -> dict | None:
         """Update records matching the filter and return the updated record.
@@ -165,7 +158,7 @@ class SupabaseService(BaseDB):
                     else:
                         raise ValueError(f"Unsupported operator: {operator}")
 
-            response = query.execute()
+            response = await query.execute()
             if response.data and len(response.data) > 0:
                 return response.data[0]  # Return first updated record
             return None
@@ -173,7 +166,7 @@ class SupabaseService(BaseDB):
             self.logger.error(f"Update error: {str(e)}")
             return None
 
-    def insert_into_table(
+    async def insert_into_table(
         self, table_name: str, insert_fields: dict, upsert: bool = False
     ) -> dict | None:
         if not table_name:
@@ -183,10 +176,10 @@ class SupabaseService(BaseDB):
             query = self.supabase.table(table_name)
             if upsert:
                 # Use upsert operation - will update if exists, insert if not
-                response = query.upsert(insert_fields).execute()
+                response = await query.upsert(insert_fields).execute()
             else:
                 # Regular insert - will fail if record exists
-                response = query.insert(insert_fields).execute()
+                response = await query.insert(insert_fields).execute()
 
             if response.data and len(response.data) > 0:
                 return response.data[0]
@@ -195,59 +188,7 @@ class SupabaseService(BaseDB):
             self.logger.error(f"Insert error: {str(e)}")
             return None
 
-    def update_name(self, id: int, new_name: str) -> bool:
-        try:
-            response = (
-                self.supabase.table("todos")
-                .update({"name": new_name})
-                .eq("id", id)
-                .execute()
-            )
-            # Check if any rows were affected by the update
-            if response.data and len(response.data) > 0:
-                print(f"Successfully updated todo {id} to '{new_name}'")
-                return True
-            else:
-                print(f"No todo found with id {id} or policy prevented update")
-                return False
-        except Exception as e:
-            self.logger.error(f"Update error: {str(e)}")
-            return False
-
-    def set_email_and_password(self, email: str, password: str):
-        self.email = email
-        self.password = password
-
-    def login(self, email: str, password: str):
-        try:
-            self.email = email
-            self.password = password
-            self.logger.info(f"Attempting login with email: {email}")
-            data = self.supabase.auth.sign_in_with_password(
-                {"email": email, "password": password}
-            )
-            # self.logger.info(f"Auth response data: {data}")
-            # self.logger.info(f"User data: {data.user if data else 'No data'}")
-            self.session = data
-            return data
-        except Exception as e:
-            self.logger.error(f"Login error details: {str(e)}")
-            return None
-
-    def logout(self):
-        self.supabase.auth.sign_out()
-        self.session = None
-
-    def reset_password(self, email: str) -> bool:
-        try:
-            self.supabase.auth.api.reset_password_for_email(email)
-            self.logger.info(f"Password reset email sent to {email}")
-            return True
-        except Exception as e:
-            self.logger.error(f"Password reset error: {str(e)}")
-            return False
-
-    def delete_from_table(self, table_name: str, where_filters: list) -> bool:
+    async def delete_from_table(self, table_name: str, where_filters: list) -> bool:
         """Delete records matching the filter.
         Returns:
             bool: True if deletion was successful, False otherwise
@@ -260,10 +201,37 @@ class SupabaseService(BaseDB):
                     query = query.eq(column, value)
                 # ... other operators ...
 
-            response = query.execute()
+            response = await query.execute()
             return bool(response.data)  # True if any rows were deleted
         except Exception as e:
             self.logger.error(f"Delete error: {str(e)}")
+            return False
+
+    async def login(self, email: str, password: str):
+        try:
+            self.email = email
+            self.password = password
+            self.logger.info(f"Attempting login with email: {email}")
+            data = await self.supabase.auth.sign_in_with_password(
+                {"email": email, "password": password}
+            )
+            self.session = data
+            return data
+        except Exception as e:
+            self.logger.error(f"Login error details: {str(e)}")
+            return None
+
+    async def logout(self):
+        await self.supabase.auth.sign_out()
+        self.session = None
+
+    async def reset_password(self, email: str) -> bool:
+        try:
+            await self.supabase.auth.reset_password_for_email(email)
+            self.logger.info(f"Password reset email sent to {email}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Password reset error: {str(e)}")
             return False
 
 
