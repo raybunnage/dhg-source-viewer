@@ -10,8 +10,16 @@ project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
 from src.services.supabase_service import SupabaseService
 from src.db.experts import Experts
+from src.db.base_db import BaseDB
 
-logger = logging.getLogger(__name__)
+
+class StreamlitLogger(BaseDB):
+    def __init__(self):
+        super().__init__(log_level=logging.DE)
+
+
+logger_instance = StreamlitLogger()
+logger = logger_instance.logger
 
 
 @dataclass
@@ -129,6 +137,15 @@ def main():
     if st.session_state.app_state.expert_data:
         st.subheader("Expert Details")
         st.json(st.session_state.app_state.expert_data)
+        logger.info(f"Expert data: {st.session_state.app_state.expert_data}")
+
+    # Add this test button
+    if st.button("Test Logging"):
+        logger.debug("This is a debug message")
+        logger.info("This is an info message")
+        logger.warning("This is a warning message")
+        logger.error("This is an error message")
+        st.success("Logs written! Check the logs directory.")
 
 
 if __name__ == "__main__":
