@@ -200,15 +200,15 @@ class DocumentTypesManager(StreamlitBase):
         document_type_options = sorted(
             [
                 (
-                    document_type["id"],
-                    document_type["document_type"],
-                    document_type.get("description", ""),
-                    document_type.get("mime_type", ""),
-                    document_type.get("file_extension", ""),
-                    document_type.get("category", ""),
-                    document_type.get("is_ai_generated", False),
+                    doc_type["id"],
+                    doc_type["document_type"],
+                    doc_type.get("description", ""),
+                    doc_type.get("mime_type", ""),
+                    doc_type.get("file_extension", ""),
+                    doc_type.get("category", ""),
+                    doc_type.get("is_ai_generated", False),
                 )
-                for document_type in document_types_list
+                for doc_type in document_types_list
             ],
             key=lambda x: x[1],
         )
@@ -222,11 +222,10 @@ class DocumentTypesManager(StreamlitBase):
 
         if selected_document_type:
             selected_document_type_id = selected_document_type[0]
-            selected_document_type = selected_document_type[1]
             document_type = st.text_input(
                 "Document Type Name", value=selected_document_type[1]
             )
-            description = st.text_area("Description", value=selected_document_type[2])
+            description = st.text_input("Description", value=selected_document_type[2])
             mime_type = st.text_input("Mime Type", value=selected_document_type[3])
             file_extension = st.text_input(
                 "File Extension", value=selected_document_type[4]
@@ -251,7 +250,7 @@ class DocumentTypesManager(StreamlitBase):
                     )
                 ):
                     st.success(
-                        f"Document Type updated successfully for {selected_document_type}"
+                        f"Document Type updated successfully for {document_type}"
                     )
                     st.rerun()
 
@@ -276,9 +275,7 @@ class DocumentTypesManager(StreamlitBase):
         )
 
         if selected_document_type:
-            selected_document_type_id, selected_document_type = (
-                selected_document_type
-            )
+            selected_document_type_id, selected_document_type = selected_document_type
             if st.button("Delete Document Type"):
                 self.logger.info(
                     f"Attempting to delete document type: {selected_document_type}"
@@ -310,15 +307,11 @@ class DocumentTypesManager(StreamlitBase):
         )
 
         if selected_document_type:
-            selected_document_type_id, selected_document_type = (
-                selected_document_type
-            )
+            selected_document_type_id, selected_document_type = selected_document_type
             alias_name = st.text_input("Alias Name")
 
             if alias_name and st.button("Add Alias"):
-                if self.run_async(
-                    self.add_alias(selected_document_type, alias_name)
-                ):
+                if self.run_async(self.add_alias(selected_document_type, alias_name)):
                     st.success(f"Alias '{alias_name}' added successfully")
                     st.rerun()
 
@@ -327,13 +320,11 @@ class DocumentTypesManager(StreamlitBase):
             if aliases:
                 st.subheader(f"Aliases for {selected_document_type}")
                 df = pd.DataFrame(aliases)
-                df = df[["id", "document_type_alias"]]
+                df = df[["id", "alias_name"]]
                 st.dataframe(
                     df,
                     hide_index=True,
-                    column_config={
-                        "document_type_alias": st.column_config.Column(width=300)
-                    },
+                    column_config={"alias_name": st.column_config.Column(width=300)},
                 )
 
                 alias_id_to_delete = st.number_input(

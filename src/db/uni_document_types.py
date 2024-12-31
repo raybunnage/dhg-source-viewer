@@ -292,6 +292,68 @@ class DocumentTypes(BaseDB):
 
         return await self._handle_db_operation("CRUD test", _crud_test_operation)
 
+    async def add_alias(self, document_type: str, alias_name: str) -> dict | None:
+        if not document_type or not alias_name:
+            raise ValueError("document_type and alias_name are required parameters")
+
+        async def _add_alias_operation():
+            # Get the document type first
+            document_type_data = await self.get_plus_by_name(document_type)
+            if not document_type_data:
+                raise ValueError(f"Document type not found with name: {document_type}")
+
+            # Create the alias data
+            alias_data = {
+                "alias_name": alias_name,
+                "document_type_uuid": document_type_data["id"],
+            }
+
+            # Check if alias already exists
+            existing_alias = await self.supabase.select_from_table(
+                self.alias_table_name,
+                ["id", "alias_name"],
+                [
+                    ("alias_name", "eq", alias_name),
+                    ("document_type_uuid", "eq", document_type_data["id"]),
+                ],
+            )
+
+            if existing_alias:
+                return existing_alias[0]
+
+            # Insert the new alias
+            result = await self.supabase.insert_into_table(
+                self.alias_table_name, alias_data
+            )
+
+            if not result:
+                raise ValueError("Failed to add alias")
+            return result
+
+        return await self._handle_db_operation("add alias", _add_alias_operation)
+
+    async def delete_alias(self, alias_id: str) -> bool:
+        if not alias_id:
+            raise ValueError("alias_id is a required parameter")
+
+        async def _delete_alias_operation():
+            existing_alias = await self.supabase.select_from_table(
+                self.alias_table_name, ["id"], [("id", "eq", alias_id)]
+            )
+
+            if not existing_alias:
+                self.logger.info(
+                    f"Alias with id {alias_id} not found - already deleted or never existed"
+                )
+                return True
+
+            result = await self.supabase.delete_from_table(
+                self.alias_table_name, [("id", "eq", alias_id)]
+            )
+            return result
+
+        return await self._handle_db_operation("delete alias", _delete_alias_operation)
+
 
 async def test_crud_operations():
     load_dotenv()

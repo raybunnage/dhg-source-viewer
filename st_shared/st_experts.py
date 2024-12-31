@@ -303,11 +303,11 @@ class ExpertsManager(StreamlitBase):
             if aliases:
                 st.subheader(f"Aliases for {selected_expert_name}")
                 df = pd.DataFrame(aliases)
-                df = df[["id", "expert_alias"]]
+                df = df[["id", "alias_name"]]
                 st.dataframe(
                     df,
                     hide_index=True,
-                    column_config={"expert_alias": st.column_config.Column(width=300)},
+                    column_config={"alias_name": st.column_config.Column(width=300)},
                 )
 
                 alias_id_to_delete = st.number_input(
