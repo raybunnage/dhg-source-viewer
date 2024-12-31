@@ -408,7 +408,3 @@ def insert_test_emails():
 if __name__ == "__main__":
     insert_test_emails()
 
-    # def __init__(self, supabase_client: Client):
-    #     if not isinstance(supabase_client, Client):
-    #         raise TypeError("supabase_client must be a Supabase Client instance")
-    #     self._supabase: Client = supabase_client
