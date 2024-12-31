@@ -10,7 +10,7 @@ from datetime import datetime
 project_root = str(Path(__file__).parent.parent.parent)
 sys.path.append(project_root)
 
-from src.db.base_db import BaseDB, ValidationError, RecordNotFoundError
+from src.db.base_db import BaseDB, ValidationError, RecordNotFoundError, DatabaseError
 from src.services.supabase_service import SupabaseService
 
 
@@ -19,39 +19,90 @@ class Experts(BaseDB[Dict[str, Any]]):
         super().__init__(supabase_client)
         self.table_name = "experts"
         self.alias_table_name = "citation_expert_aliases"
+        self.logger.debug(f"Initialized Experts with table: {self.table_name}")
 
     async def _validate_data(self, data: Dict[str, Any]) -> bool:
-        """Implement required abstract method for data validation"""
-        required_fields = ["expert_name", "full_name"]
-        return all(field in data and data[field] for field in required_fields)
+        self.logger.debug(f"Validating expert data: {data}")
 
-    # Modified add method to use base functionality
+        required_fields = ["expert_name", "full_name"]
+        for field in required_fields:
+            if field not in data or data[field] is None:
+                self.logger.error(f"Missing required field: {field}")
+                raise ValidationError(f"Missing required field: {field}")
+
+        type_validations: Dict[str, type] = {
+            "expert_name": str,
+            "full_name": str,
+            "email_address": str,
+            "starting_ref_id": int,
+            "is_in_core_group": bool,
+            "is_active": bool,
+            "user_id": str,
+        }
+
+        for field, expected_type in type_validations.items():
+            if field in data and data[field] is not None:
+                if not isinstance(data[field], expected_type):
+                    self.logger.error(
+                        f"Invalid type for {field}: expected {expected_type.__name__}"
+                    )
+                    raise ValidationError(f"{field} must be a {expected_type.__name__}")
+
+        self.logger.debug("Data validation successful")
+        return True
+
     async def add(
         self,
         expert_name: str,
         full_name: str,
-        email_address: str = None,
-        additional_fields: dict = None,
+        email_address: Optional[str] = None,
+        additional_fields: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
-        expert_data = {
-            "expert_name": expert_name,
-            "full_name": full_name,
-            "email_address": email_address,
-        }
-        if additional_fields:
-            expert_data.update(additional_fields)
+        self.logger.debug(f"Adding expert: {expert_name}, {full_name}")
 
-        # Check if expert already exists
-        try:
-            existing = await self.get_by_name(expert_name)
-            return existing
-        except RecordNotFoundError:
-            return await super().add(expert_data)
+        if not expert_name or not full_name:
+            self.logger.error("expert_name and full_name are required parameters")
+            raise ValidationError("expert_name and full_name are required parameters")
 
-    # Simplified get_all using base functionality
+        async def _add_operation():
+            # 1. Prepare data
+            expert_data = {
+                "expert_name": expert_name,
+                "full_name": full_name,
+                "email_address": email_address,
+            }
+            if additional_fields:
+                self.logger.debug(f"Including additional fields: {additional_fields}")
+                expert_data.update(additional_fields)
+
+            # 2. Validate data (matching DocumentTypes order)
+            await self._validate_data(expert_data)
+
+            # 3. Check if expert exists
+            self.logger.debug(f"Checking if expert exists: {expert_name}")
+            existing = await self.supabase.select_from_table(
+                self.table_name, ["id"], [("expert_name", "eq", expert_name)]
+            )
+
+            if existing and len(existing) > 0:
+                self.logger.debug(f"Found existing expert: {existing[0]}")
+                return await self.get_by_id(existing[0]["id"])
+
+            # 4. Insert new record
+            self.logger.debug("Expert not found, creating new record")
+            result = await self.supabase.insert_into_table(self.table_name, expert_data)
+            if not result:
+                self.logger.error("Failed to add expert")
+                raise DatabaseError("Failed to add expert")
+            self.logger.debug(f"Created new expert: {result}")
+            return result
+
+        return await self._handle_db_operation("add expert", _add_operation)
+
     async def get_all(
-        self, additional_fields: List[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, additional_fields: Optional[List[str]] = None
+    ) -> Optional[List[Dict[str, Any]]]:
+        self.logger.debug("Getting all experts")
         fields = [
             "id",
             "user_id",
@@ -60,64 +111,86 @@ class Experts(BaseDB[Dict[str, Any]]):
             "email_address",
             "is_in_core_group",
         ]
+
         if additional_fields:
+            self.logger.debug(f"Including additional fields: {additional_fields}")
             fields.extend(additional_fields)
 
         async def _get_all_operation():
+            self.logger.debug("Executing get_all query")
             result = await self.supabase.select_from_table(
                 self.table_name, fields, [("is_active", "eq", True)]
             )
             if not result:
-                return []
+                self.logger.debug("No experts found")
+                raise RecordNotFoundError("No experts found or policy prevented read")
+            self.logger.debug(f"Found {len(result)} experts")
             return result
 
         return await self._handle_db_operation("get all experts", _get_all_operation)
 
-    # Renamed for clarity and consistency
     async def get_by_name(
-        self, expert_name: str, optional_fields: List[str] = None
+        self, expert_name: str, optional_fields: Optional[List[str]] = None
     ) -> Optional[Dict[str, Any]]:
-        """Get expert by name (formerly get_plus_by_name)"""
+        self.logger.debug(f"Getting expert by name: {expert_name}")
+
         if not expert_name:
+            self.logger.error("Expert name is required")
             raise ValidationError("expert_name is required")
 
         fields = ["id", "expert_name", "full_name", "starting_ref_id"]
         if optional_fields:
+            self.logger.debug(f"Including optional fields: {optional_fields}")
             fields.extend(optional_fields)
 
         async def _get_by_name_operation():
+            self.logger.debug(f"Executing get_by_name query for: {expert_name}")
             result = await self.supabase.select_from_table(
                 self.table_name, fields, [("expert_name", "eq", expert_name)]
             )
             if not result:
+                self.logger.debug(f"Expert not found: {expert_name}")
                 raise RecordNotFoundError(f"Expert not found: {expert_name}")
+            self.logger.debug(f"Found expert: {result[0]}")
             return result[0]
 
         return await self._handle_db_operation(
             "get expert by name", _get_by_name_operation
         )
 
-    # Alias-related methods
     async def add_alias(
         self, expert_name: str, alias_name: str
     ) -> Optional[Dict[str, Any]]:
+        self.logger.debug(f"Adding alias {alias_name} for expert {expert_name}")
+
         if not expert_name or not alias_name:
-            raise ValidationError("expert_name and alias_name are required")
+            self.logger.error("expert_name and alias_name are required parameters")
+            raise ValidationError("expert_name and alias_name are required parameters")
+
+        if not isinstance(expert_name, str) or not isinstance(alias_name, str):
+            self.logger.error("expert_name and alias_name must be strings")
+            raise ValidationError("expert_name and alias_name must be strings")
 
         async def _add_alias_operation():
             expert_data = await self.get_by_name(expert_name)
+            self.logger.debug(f"Found expert data: {expert_data}")
+
             alias_data = {"alias_name": alias_name, "expert_uuid": expert_data["id"]}
 
-            # Check existing alias
             try:
+                self.logger.debug(f"Checking if alias exists: {alias_name}")
                 existing = await self.get_alias(alias_name, expert_data["id"])
+                self.logger.debug(f"Found existing alias: {existing}")
                 return existing
             except RecordNotFoundError:
+                self.logger.debug("Creating new alias")
                 result = await self.supabase.insert_into_table(
                     self.alias_table_name, alias_data
                 )
                 if not result:
-                    raise ValidationError("Failed to add alias")
+                    self.logger.error("Failed to add alias")
+                    raise DatabaseError("Failed to add alias")
+                self.logger.debug(f"Created new alias: {result}")
                 return result
 
         return await self._handle_db_operation("add alias", _add_alias_operation)
@@ -125,7 +198,8 @@ class Experts(BaseDB[Dict[str, Any]]):
     async def get_alias(
         self, alias_name: str, expert_id: str
     ) -> Optional[Dict[str, Any]]:
-        """Helper method to get a specific alias"""
+        self.logger.debug(f"Getting alias: {alias_name} for expert ID: {expert_id}")
+
         result = await self.supabase.select_from_table(
             self.alias_table_name,
             ["id", "alias_name"],
@@ -135,22 +209,51 @@ class Experts(BaseDB[Dict[str, Any]]):
             ],
         )
         if not result:
+            self.logger.debug("Alias not found")
             raise RecordNotFoundError("Alias not found")
+        self.logger.debug(f"Found alias: {result[0]}")
         return result[0]
 
-    # Test method updated to use new base functionality
+    async def update(
+        self, expert_id: str, update_data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        self.logger.debug(f"Updating expert {expert_id} with data: {update_data}")
+
+        async def _update_operation():
+            result = await super().update(expert_id, update_data)
+            if not result:
+                self.logger.error(f"Failed to update expert: {expert_id}")
+                raise DatabaseError("Failed to update expert")
+            self.logger.debug(f"Successfully updated expert: {result}")
+            return result
+
+        return await self._handle_db_operation("update expert", _update_operation)
+
+    async def delete(self, expert_id: str) -> bool:
+        self.logger.debug(f"Deleting expert: {expert_id}")
+
+        async def _delete_operation():
+            result = await super().delete(expert_id)
+            if not result:
+                self.logger.error(f"Failed to delete expert: {expert_id}")
+                raise DatabaseError("Failed to delete expert")
+            self.logger.debug(f"Successfully deleted expert: {expert_id}")
+            return True
+
+        return await self._handle_db_operation("delete expert", _delete_operation)
+
     async def do_crud_test(self):
-        """Test CRUD operations using base class methods"""
+        self.logger.debug("Starting CRUD test")
 
         async def _crud_test_operation():
             self.logger.info("Starting CRUD test")
 
-            # Test data
             test_expert = {
                 "expert_name": "TestExpert",
                 "full_name": "Test Expert Name",
                 "email_address": "test@example.com",
             }
+            self.logger.debug(f"Test expert data: {test_expert}")
 
             # Create
             expert = await self.add(**test_expert)
@@ -173,6 +276,9 @@ class Experts(BaseDB[Dict[str, Any]]):
             # Test alias operations
             alias = await self.add_alias(test_expert["expert_name"], "TestAlias")
             self.logger.info(f"Created alias: {alias}")
+
+            self.logger.info("CRUD test completed successfully")
+            return True
 
         return await self._handle_db_operation("CRUD test", _crud_test_operation)
 
@@ -303,4 +409,3 @@ def select_from_table():
         [("id", "eq", expert_id)],
     )
     print(data)
-
