@@ -61,6 +61,13 @@ class Experts(BaseDB):
             if additional_fields:
                 expert_data.update(additional_fields)
 
+            # Check if expert already exists
+            existing = await self.supabase.select_from_table(
+                self.table_name, ["id"], [("expert_name", "eq", expert_name)]
+            )
+            if existing and len(existing) > 0:
+                return existing[0]
+
             result = await self.supabase.insert_into_table(self.table_name, expert_data)
             if not result:
                 raise ValueError("Failed to add expert")
@@ -161,27 +168,40 @@ class Experts(BaseDB):
             raise ValueError("expert_name and alias_name are required parameters")
 
         async def _add_alias_operation():
+            # Get the expert first
             expert_data = await self.get_plus_by_name(expert_name)
             if not expert_data:
-                self.logger.error("Expert not found or policy prevented read.")
-                return None
+                raise ValueError(f"Expert not found with name: {expert_name}")
+
+            # Log the expert data for debugging
+            self.logger.debug(f"Found expert: {expert_data}")
+
+            # Create the alias data
+            alias_data = {"alias_name": alias_name, "expert_uuid": expert_data["id"]}
 
             # Check if alias already exists
             existing_alias = await self.supabase.select_from_table(
                 self.alias_table_name,
-                ["id", "expert_alias"],
-                [("expert_alias", "eq", alias_name)],
+                ["id", "alias_name"],
+                [
+                    ("alias_name", "eq", alias_name),
+                    ("expert_uuid", "eq", expert_data["id"]),
+                ],
             )
 
             if existing_alias:
+                self.logger.debug(f"Found existing alias: {existing_alias[0]}")
                 return existing_alias[0]
 
+            # Insert the new alias
             result = await self.supabase.insert_into_table(
-                self.alias_table_name,
-                {"expert_alias": alias_name, "expert_uuid": expert_data["id"]},
+                self.alias_table_name, alias_data
             )
+
             if not result:
                 raise ValueError("Failed to add alias")
+
+            self.logger.debug(f"Created new alias: {result}")
             return result
 
         return await self._handle_db_operation("add alias", _add_alias_operation)
@@ -196,12 +216,17 @@ class Experts(BaseDB):
                 self.logger.error("Expert not found or policy prevented read.")
                 return None
 
+            # Add logging to debug the query
+            self.logger.debug(f"Querying aliases for expert_uuid: {expert_data['id']}")
             result = await self.supabase.select_from_table(
                 self.alias_table_name,
-                ["id", "expert_alias"],
+                ["id", "alias_name", "expert_uuid"],
                 [("expert_uuid", "eq", expert_data["id"])],
             )
-            return result
+
+            # Add logging to see what's being returned
+            self.logger.debug(f"Found aliases: {result}")
+            return result or []
 
         return await self._handle_db_operation(
             "get aliases by expert name", _get_aliases_by_expert_name_operation

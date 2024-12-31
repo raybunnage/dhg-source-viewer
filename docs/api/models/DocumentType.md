@@ -34,37 +34,85 @@ The `DocumentType` class represents different types of documents that can be pro
 Creates a new DocumentTypes instance.
 
 **Parameters:**
-- `supabase_client`: Supabase client instance for database operations
+- `supabase_client` (SupabaseClient): Supabase client instance for database operations
+
+**Returns:**
+- `DocumentType`: A new DocumentType instance
 
 ### async add(document_type, description?, mime_type?, file_extension?, category?, is_ai_generated?, additional_fields?)
-Creates a new document type.
+Creates a new document type in the database.
 
 **Parameters:**
 - `document_type` (string): Name of the document type
-- `description` (string, optional): Description of the document type
-- `mime_type` (string, optional): MIME type
-- `file_extension` (string, optional): File extension
-- `category` (string, optional): Category
-- `is_ai_generated` (boolean, optional): Whether the document is AI-generated
-- `additional_fields` (object, optional): Any additional fields to store
+- `description` (string, optional): Detailed description of the document type
+- `mime_type` (string, optional): MIME type of the document (e.g., 'application/pdf')
+- `file_extension` (string, optional): File extension without dot (e.g., 'pdf')
+- `category` (string, optional): Category classification (defaults to 'tbd')
+- `is_ai_generated` (boolean, optional): Whether the document is AI-generated (defaults to false)
+- `additional_fields` (object, optional): Additional custom fields to store with the document type
 
 **Returns:**
-- `Promise<Object>` - The created document type
+- `Promise<Object>`: The created document type object with all properties
 
 ### async get_by_id(document_type_id)
-Retrieves a document type by ID.
+Retrieves a document type by its unique identifier.
+
+**Parameters:**
+- `document_type_id` (uuid): Unique identifier of the document type
+
+**Returns:**
+- `Promise<Object|null>`: The document type object if found, null otherwise
 
 ### async update(document_type_id, update_data)
-Updates an existing document type.
+Updates an existing document type with new data.
+
+**Parameters:**
+- `document_type_id` (uuid): Unique identifier of the document type to update
+- `update_data` (object): Object containing fields to update. Valid fields include:
+  - `document_type` (string, optional): New name
+  - `description` (string, optional): New description
+  - `mime_type` (string, optional): New MIME type
+  - `file_extension` (string, optional): New file extension
+  - `category` (string, optional): New category
+  - `is_active` (boolean, optional): New active status
+  - `required_fields` (object, optional): New required fields definition
+
+**Returns:**
+- `Promise<Object>`: The updated document type object
 
 ### async get_all(additional_fields?)
-Retrieves all document types.
+Retrieves all document types from the database.
+
+**Parameters:**
+- `additional_fields` (string[], optional): Array of additional fields to include in the response
+
+**Returns:**
+- `Promise<Object[]>`: Array of document type objects
 
 ### async get_plus_by_name(document_type, optional_fields?)
 Retrieves a document type by name with optional additional fields.
 
+**Parameters:**
+- `document_type` (string): Name of the document type to retrieve
+- `optional_fields` (string[], optional): Array of additional fields to include in the response
+
+**Returns:**
+- `Promise<Object|null>`: The document type object with requested fields if found, null otherwise
+
 ### async delete(document_type_id)
-Deletes a document type.
+Deletes a document type from the database.
+
+**Parameters:**
+- `document_type_id` (uuid): Unique identifier of the document type to delete
+
+**Returns:**
+- `Promise<void>`: Resolves when deletion is complete
 
 ### async get_aliases_by_document_type(document_type)
-Retrieves aliases for a document type. 
+Retrieves all aliases associated with a document type.
+
+**Parameters:**
+- `document_type` (string): Name of the document type to get aliases for
+
+**Returns:**
+- `Promise<string[]>`: Array of alias strings for the document type 

@@ -67,6 +67,13 @@ class DocumentTypes(BaseDB):
             if additional_fields:
                 document_type_data.update(additional_fields)
 
+            # Check if document type already exists
+            existing = await self.supabase.select_from_table(
+                self.table_name, ["id"], [("document_type", "eq", document_type)]
+            )
+            if existing and len(existing) > 0:
+                return existing[0]
+
             result = await self.supabase.insert_into_table(
                 self.table_name, document_type_data
             )
@@ -76,7 +83,7 @@ class DocumentTypes(BaseDB):
 
         return await self._handle_db_operation("add_document_type", _add_operation)
 
-    async def get_by_id(self, document_type_id: str) -> dict:
+    async def get_by_id(self, document_type_id: str) -> dict | None:
         if not document_type_id:
             raise ValueError("document_type_id is required parameter")
 
@@ -106,7 +113,7 @@ class DocumentTypes(BaseDB):
 
         return await self._handle_db_operation("update", _update_operation)
 
-    async def get_all(self, additional_fields: dict = None) -> list:
+    async def get_all(self, additional_fields: dict = None) -> list | None:
         async def _get_all_operation():
             fields = [
                 "id",

@@ -29,8 +29,8 @@ The `Expert` class represents a professional expert in the system, with support 
 
 ## Methods
 
-### add(expert_name: str, full_name: str, email_address: str = None, additional_fields: dict = None)
-Creates a new expert record.
+### async add(expert_name: str, full_name: str, email_address: str = None, additional_fields: dict = None)
+Asynchronously creates a new expert record.
 
 **Parameters:**
 - `expert_name` (str): Unique name identifier for the expert
@@ -39,78 +39,78 @@ Creates a new expert record.
 - `additional_fields` (dict, optional): Additional expert information
 
 **Returns:**
-- `dict | None` - Created expert record or None if failed
+- `Promise<Object|null>`: Resolves to the created expert record or null if creation failed
 
-### get_all(additional_fields: dict = None)
-Retrieves all active experts.
+### async get_all(additional_fields: dict = None)
+Asynchronously retrieves all active experts.
 
 **Returns:**
-- `list | None` - List of expert records or None if none found
+- `Promise<Object[]|null>`: Resolves to an array of expert records or null if none found
 
-### get_plus_by_name(expert_name: str, optional_fields: dict = None)
-Retrieves an expert by their expert_name.
+### async get_plus_by_name(expert_name: str, optional_fields: dict = None)
+Asynchronously retrieves an expert by their expert_name.
 
 **Parameters:**
 - `expert_name` (str): Expert's unique name identifier
 - `optional_fields` (dict, optional): Additional fields to retrieve
 
 **Returns:**
-- `dict | None` - Expert record or None if not found
+- `Promise<Object|null>`: Resolves to the expert record or null if not found
 
-### get_by_id(expert_id: str)
-Retrieves an expert by their ID.
+### async get_by_id(expert_id: str)
+Asynchronously retrieves an expert by their ID.
 
 **Parameters:**
 - `expert_id` (str): Expert's unique identifier
 
 **Returns:**
-- `dict | None` - Expert record or None if not found
+- `Promise<Object|null>`: Resolves to the expert record or null if not found
 
-### update(expert_id: str, update_data: dict)
-Updates an expert's information.
+### async update(expert_id: str, update_data: dict)
+Asynchronously updates an expert's information.
 
 **Parameters:**
 - `expert_id` (str): Expert's unique identifier
 - `update_data` (dict): Fields to update
 
 **Returns:**
-- `dict | None` - Updated expert record or None if failed
+- `Promise<Object|null>`: Resolves to the updated expert record or null if update failed
 
-### delete(expert_id: str)
-Deletes an expert record.
+### async delete(expert_id: str)
+Asynchronously deletes an expert record.
 
 **Parameters:**
 - `expert_id` (str): Expert's unique identifier
 
 **Returns:**
-- `bool` - True if successful, False otherwise
+- `Promise<boolean>`: Resolves to true if deletion was successful, false otherwise
 
 ## Alias Management
 
-### add_alias(expert_name: str, alias_name: str)
-Adds an alias for an expert.
+### async add_alias(expert_name: str, alias_name: str)
+Asynchronously adds an alias for an expert.
 
 **Parameters:**
 - `expert_name` (str): Expert's name identifier
 - `alias_name` (str): Alias to add
 
 **Returns:**
-- `dict | None` - Created alias record or None if failed
+- `Promise<Object|null>`: Resolves to the created alias record or null if creation failed
 
-### get_aliases_by_expert_name(expert_name: str)
-Retrieves all aliases for an expert.
+### async get_aliases_by_expert_name(expert_name: str)
+Asynchronously retrieves all aliases for an expert.
 
 **Parameters:**
 - `expert_name` (str): Expert's name identifier
 
 **Returns:**
-- `list | None` - List of alias records or None if none found
+- `Promise<Object[]|null>`: Resolves to an array of alias records or null if none found
 
-### delete_alias(alias_id: str)
-Deletes an expert alias.
+### async delete_alias(alias_id: str)
+Asynchronously deletes an expert alias.
 
 **Parameters:**
 - `alias_id` (str): Alias unique identifier
 
 **Returns:**
-- `bool` - True if successful, False otherwise 
+- `Promise<boolean>`: Resolves to true if deletion was successful, false otherwise 
