@@ -131,10 +131,10 @@ class DocumentTypes(BaseDB):
         return await self._handle_db_operation("get_all", _get_all_operation)
 
     async def get_plus_by_name(
-        self, document_type_name: str, optional_fields: dict = None
+        self, document_type: str, optional_fields: dict = None
     ) -> dict:
-        if not document_type_name:
-            raise ValueError("document_type_name is required parameter")
+        if not document_type:
+            raise ValueError("document_type is required parameter")
 
         async def _get_plus_by_name_operation():
             fields = [
@@ -151,7 +151,7 @@ class DocumentTypes(BaseDB):
             response = await self.supabase.select_from_table(
                 self.table_name,
                 fields,
-                [("document_type", "eq", document_type_name)],
+                [("document_type", "eq", document_type)],
             )
             if not response or len(response) == 0:
                 raise ValueError("Document type not found or policy prevented read")
@@ -175,14 +175,12 @@ class DocumentTypes(BaseDB):
 
         return await self._handle_db_operation("delete", _delete_operation)
 
-    async def get_aliases_by_document_type_name(
-        self, document_type_name: str
-    ) -> list | None:
-        if not document_type_name:
-            raise ValueError("document_type_name is a required parameter")
+    async def get_aliases_by_document_type(self, document_type: str) -> list | None:
+        if not document_type:
+            raise ValueError("document_type is a required parameter")
 
         async def _get_aliases_operation():
-            document_type_data = await self.get_plus_by_name(document_type_name)
+            document_type_data = await self.get_plus_by_name(document_type)
             if not document_type_data:
                 self.logger.error("Document type not found or policy prevented read.")
                 return None
@@ -230,7 +228,7 @@ class DocumentTypes(BaseDB):
                         "Test Document", ["category", "is_ai_generated"]
                     ),
                     self.get_all(["category", "is_ai_generated"]),
-                    self.get_aliases_by_document_type_name("Test Document"),
+                    self.get_aliases_by_document_type("professional biography"),
                 )
 
                 if doc_type_data:
