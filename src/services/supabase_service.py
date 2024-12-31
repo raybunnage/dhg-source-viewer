@@ -1,27 +1,55 @@
 import os
 from dotenv import load_dotenv
-from supabase import create_client, AsyncClient
+from supabase import AsyncClient
 from datetime import datetime
-
+import logging
 from pathlib import Path
-import sys
-
-project_root = str(Path(__file__).parent.parent.parent)
-sys.path.append(project_root)
-from src.db.base_db import BaseDB
+import asyncio
 
 
-class SupabaseService(BaseDB):
-    def __init__(self, url: str, api_key: str):
-        super().__init__()
+class SupabaseService:
+    def __init__(self, url: str, api_key: str, log_level=logging.DEBUG):
         self.url = url
         self.api_key = api_key
+        self.setup_logging(log_level)
         self._init_client()
+
+    def setup_logging(self, log_level):
+        """Configure logging with file and console handlers"""
+        # Create logs directory if it doesn't exist
+        log_dir = Path("logs")
+        log_dir.mkdir(exist_ok=True)
+
+        # Create a logger for this instance
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.setLevel(log_level)
+
+        # Only add handlers if they haven't been added yet
+        if not self.logger.handlers:
+            # File handler - separate file for each day
+            file_handler = logging.FileHandler(
+                log_dir / f"{datetime.now().strftime('%Y-%m-%d')}.log"
+            )
+            file_handler.setFormatter(
+                logging.Formatter(
+                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+                )
+            )
+
+            # Console handler
+            console_handler = logging.StreamHandler()
+            console_handler.setFormatter(
+                logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+            )
+
+            self.logger.addHandler(file_handler)
+            self.logger.addHandler(console_handler)
 
     def _init_client(self) -> None:
         """Initialize the Supabase async client"""
         try:
             self._supabase = AsyncClient(self.url, self.api_key)
+            self.logger.info("Supabase client initialized successfully")
         except Exception as e:
             self.logger.error(f"Failed to initialize Supabase client: {str(e)}")
             raise
@@ -32,6 +60,7 @@ class SupabaseService(BaseDB):
         if not hasattr(self, "_supabase") or not isinstance(
             self._supabase, AsyncClient
         ):
+            self.logger.error("Supabase client not properly initialized")
             raise RuntimeError("Supabase client not properly initialized")
         return self._supabase
 
@@ -39,15 +68,18 @@ class SupabaseService(BaseDB):
         self, table_name: str, fields: dict, where_filters: list = None
     ):
         if not table_name:
+            self.logger.error("Table name is required")
             raise ValueError("Table name is required")
 
         try:
+            self.logger.debug(f"Selecting from table {table_name} with fields {fields}")
             if fields == "*":
                 query = self.supabase.table(table_name).select("*")
             else:
                 query = self.supabase.table(table_name).select(",".join(fields))
 
             if where_filters:
+                self.logger.debug(f"Applying filters: {where_filters}")
                 for filter in where_filters:
                     column, operator, value = filter
                     if operator == "eq":
@@ -89,12 +121,14 @@ class SupabaseService(BaseDB):
                     elif operator == "text_search":
                         query = query.text_search(column, value)
                     else:
+                        self.logger.error(f"Unsupported operator: {operator}")
                         raise ValueError(f"Unsupported operator: {operator}")
 
             response = await query.execute()
             if not response or not hasattr(response, "data"):
                 self.logger.error("Invalid response format from Supabase")
                 return None
+            self.logger.debug(f"Successfully retrieved {len(response.data)} records")
             return response.data
         except Exception as e:
             self.logger.error(f"Select error: {str(e)}")
@@ -103,18 +137,22 @@ class SupabaseService(BaseDB):
     async def update_table(
         self, table_name: str, update_fields: dict, where_filters: list
     ) -> dict | None:
-        """Update records matching the filter and return the updated record.
-        Returns:
-            dict | None: The updated record with all fields, or None if update failed
-        """
-
+        """Update records matching the filter and return the updated record."""
         if not table_name:
+            self.logger.error("Table name is required")
             raise ValueError("Table name is required")
 
         try:
-            query = self.supabase.table(table_name).update(update_fields)
+            # Serialize datetime fields before update
+            serialized_fields = self._serialize_data(update_fields)
+            self.logger.debug(
+                f"Updating table {table_name} with fields {serialized_fields}"
+            )
+
+            query = self.supabase.table(table_name).update(serialized_fields)
 
             if where_filters:
+                self.logger.debug(f"Applying filters: {where_filters}")
                 for filter in where_filters:
                     column, operator, value = filter
                     if operator == "eq":
@@ -156,11 +194,14 @@ class SupabaseService(BaseDB):
                     elif operator == "text_search":
                         query = query.text_search(column, value)
                     else:
+                        self.logger.error(f"Unsupported operator: {operator}")
                         raise ValueError(f"Unsupported operator: {operator}")
 
             response = await query.execute()
             if response.data and len(response.data) > 0:
+                self.logger.debug("Update successful")
                 return response.data[0]  # Return first updated record
+            self.logger.warning("No records updated")
             return None
         except Exception as e:
             self.logger.error(f"Update error: {str(e)}")
@@ -170,39 +211,47 @@ class SupabaseService(BaseDB):
         self, table_name: str, insert_fields: dict, upsert: bool = False
     ) -> dict | None:
         if not table_name:
+            self.logger.error("Table name is required")
             raise ValueError("Table name is required")
 
         try:
+            self.logger.debug(f"Inserting into table {table_name}: {insert_fields}")
             query = self.supabase.table(table_name)
             if upsert:
-                # Use upsert operation - will update if exists, insert if not
+                self.logger.debug("Using upsert operation")
                 response = await query.upsert(insert_fields).execute()
             else:
-                # Regular insert - will fail if record exists
                 response = await query.insert(insert_fields).execute()
 
             if response.data and len(response.data) > 0:
+                self.logger.debug("Insert successful")
                 return response.data[0]
+            self.logger.warning("No records inserted")
             return None
         except Exception as e:
             self.logger.error(f"Insert error: {str(e)}")
             return None
 
     async def delete_from_table(self, table_name: str, where_filters: list) -> bool:
-        """Delete records matching the filter.
-        Returns:
-            bool: True if deletion was successful, False otherwise
-        """
+        """Delete records matching the filter."""
         try:
+            self.logger.debug(
+                f"Deleting from table {table_name} with filters {where_filters}"
+            )
             query = self.supabase.table(table_name).delete()
-            # Apply filters
+
             for column, operator, value in where_filters:
                 if operator == "eq":
                     query = query.eq(column, value)
                 # ... other operators ...
 
             response = await query.execute()
-            return bool(response.data)  # True if any rows were deleted
+            success = bool(response.data)
+            if success:
+                self.logger.debug("Delete successful")
+            else:
+                self.logger.warning("No records deleted")
+            return success
         except Exception as e:
             self.logger.error(f"Delete error: {str(e)}")
             return False
@@ -216,17 +265,24 @@ class SupabaseService(BaseDB):
                 {"email": email, "password": password}
             )
             self.session = data
+            self.logger.info(f"Login successful for: {email}")
             return data
         except Exception as e:
             self.logger.error(f"Login error details: {str(e)}")
             return None
 
     async def logout(self):
-        await self.supabase.auth.sign_out()
-        self.session = None
+        try:
+            self.logger.info("Logging out user")
+            await self.supabase.auth.sign_out()
+            self.session = None
+            self.logger.info("Logout successful")
+        except Exception as e:
+            self.logger.error(f"Logout error: {str(e)}")
 
     async def reset_password(self, email: str) -> bool:
         try:
+            self.logger.info(f"Initiating password reset for: {email}")
             await self.supabase.auth.reset_password_for_email(email)
             self.logger.info(f"Password reset email sent to {email}")
             return True
@@ -234,122 +290,27 @@ class SupabaseService(BaseDB):
             self.logger.error(f"Password reset error: {str(e)}")
             return False
 
+    def clear_logs(self):
+        """Clear the current day's log file"""
+        log_dir = Path("logs")
+        log_file = log_dir / f"{datetime.now().strftime('%Y-%m-%d')}.log"
+        self.logger.debug(f"Clearing log file: {log_file}")
+        with open(log_file, "w") as f:
+            f.truncate(0)
 
-def main():
-    """Test the Supabase service."""
+
+async def insert_test_emails():
     load_dotenv()
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_KEY")
-    supabase = SupabaseService(url, key)
     email = os.getenv("TEST_EMAIL")
     password = os.getenv("TEST_PASSWORD")
-    supabase.login(email, password)
-    # Then create the service with the client
-    todos = supabase.get_todos()
-    if todos:
-        print(f"Found {len(todos.data)} todos")
-    else:
-        print("No todos found or error occurred")
 
-    users = supabase.get_test_users()
-    if users:
-        print(f"Found {len(users.data)} users")
-    else:
-        print("No users found or error occurred")
+    if not all([url, key, email, password]):
+        raise ValueError("Missing required environment variables")
 
-
-def update_document_type_description():
-    load_dotenv()
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY")
     supabase = SupabaseService(url, key)
-    email = os.getenv("TEST_EMAIL")
-    password = os.getenv("TEST_PASSWORD")
-    supabase.login(email, password)
-
-    try:
-        response = supabase.update_table(
-            "uni_document_types",
-            {"description": "includes master's thesis"},
-            [("document_type", "eq", "thesis")],
-        )
-        if response.status_code == 200:
-            print("Document type description updated successfully.")
-        else:
-            print(
-                f"Failed to update document type description. Status code: {response.status_code}"
-            )
-    except Exception as e:
-        print(f"Error updating document type description: {str(e)}")
-
-
-def insert_test():
-    load_dotenv()
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY")
-    supabase = SupabaseService(url, key)
-    email = os.getenv("TEST_EMAIL")
-    password = os.getenv("TEST_PASSWORD")
-    supabase.login(email, password)
-
-    new_expert = {
-        "expert_name": "John Doe",
-        "full_name": "Johnathan Doe",
-        "starting_ref_id": 123,
-        "expertise_area": "AI",
-        "experience_years": 5,
-        "user_id": "f5972054-059e-4b1e-915e-268bcdcc94b9",
-    }
-    try:
-        response = supabase.insert_into_table("experts", new_expert)
-        if response:  # If we got back a dict with the inserted data
-            print("New expert inserted successfully.")
-            print(f"Inserted expert data: {response}")
-        else:
-            print("Failed to insert new expert.")
-    except Exception as e:
-        print(f"Error inserting new expert: {str(e)}")
-
-
-def select_from_table():
-    load_dotenv()
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY")
-    supabase = SupabaseService(url, key)
-    email = os.getenv("TEST_EMAIL")
-    password = os.getenv("TEST_PASSWORD")
-    supabase.login(email, password)
-    data = supabase.select_from_table(
-        "uni_document_types",
-        [
-            "document_type",
-            "description",
-            "is_ai_generated",
-            "mime_type",
-            "file_extension",
-            "category",
-        ],
-        [("is_active", "eq", True)],
-    )
-    print(data)
-    fields = "*"
-    expert_id = "34acaa61-7fb4-4c02-b463-a55128e354f3"
-    data = supabase.select_from_table(
-        "experts",
-        fields,
-        [("id", "eq", expert_id)],
-    )
-    print(data)
-
-
-def insert_test_emails():
-    load_dotenv()
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY")
-    supabase = SupabaseService(url, key)
-    email = os.getenv("TEST_EMAIL")
-    password = os.getenv("TEST_PASSWORD")
-    supabase.login(email, password)
+    await supabase.login(email, password)
 
     # Test single record insert
     single_email = {
@@ -358,53 +319,38 @@ def insert_test_emails():
         "content": "This is a test email body 1",
         "sender": "sender1@test.com",
         "to_recipients": "recipient1@test.com",
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "date": datetime.now(),
+        "created_at": datetime.now(),
     }
 
     try:
-        response = supabase.insert_into_table("temp_emails", single_email)
-        if response:
-            print("Single test email inserted successfully")
-            print(f"Inserted email data: {response}")
-        else:
-            print("Failed to insert single test email")
+        response = await supabase.insert_into_table("temp_emails", single_email)
+        print("Single test email inserted successfully")
+        print(f"Inserted email data: {response}")
     except Exception as e:
-        print(f"Error inserting single test email: {str(e)}")
+        print(f"Error inserting single test email: {e}")
 
-    # Test multiple record insert
+    # Test multiple records insert
     test_emails = [
         {
-            "email_id": "2",
-            "subject": "Test Email 2",
-            "content": "This is a test email body 2",
-            "sender": "sender2@test.com",
-            "to_recipients": "recipient2@test.com",
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        },
-        {
-            "email_id": "3",
-            "subject": "Test Email 3",
-            "content": "This is a test email body 3",
-            "sender": "sender3@test.com",
-            "to_recipients": "recipient3@test.com",
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        },
+            "email_id": str(i),
+            "subject": f"Test Email {i}",
+            "content": f"This is a test email body {i}",
+            "sender": f"sender{i}@test.com",
+            "to_recipients": f"recipient{i}@test.com",
+            "date": datetime.now(),
+            "created_at": datetime.now(),
+        }
+        for i in range(2, 4)
     ]
 
     try:
-        response = supabase.insert_into_table("temp_emails", test_emails)
-        if response:
-            print("Multiple test emails inserted successfully")
-            print(f"Inserted email data: {response}")
-        else:
-            print("Failed to insert multiple test emails")
+        response = await supabase.insert_into_table("temp_emails", test_emails)
+        print("Multiple test emails inserted successfully")
+        print(f"Inserted email data: {response}")
     except Exception as e:
-        print(f"Error inserting multiple test emails: {str(e)}")
+        print(f"Error inserting multiple test emails: {e}")
 
 
 if __name__ == "__main__":
-    insert_test_emails()
-
+    asyncio.run(insert_test_emails())

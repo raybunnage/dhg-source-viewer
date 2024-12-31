@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 import asyncio
+from datetime import datetime
 
 # Add the project root directory to Python path
 project_root = str(Path(__file__).parent.parent.parent)
@@ -14,33 +15,60 @@ from src.db.base_db import BaseDB
 
 class DocumentTypes(BaseDB):
     def __init__(self, supabase_client):
-        super().__init__()
-        if not supabase_client:
-            raise ValueError("Supabase client cannot be None")
-        self.supabase = supabase_client
+        super().__init__(supabase_client)
         self.table_name = "uni_document_types"
         self.alias_table_name = "document_type_aliases"
 
-    async def _verify_connection(self) -> bool:
-        """Verify the Supabase connection is active"""
-        try:
-            await self.supabase.select_from_table(self.table_name, ["id"], [])
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to verify database connection: {str(e)}")
-            raise ConnectionError("Could not establish database connection") from e
+    def _validate_data(self, data: dict) -> bool:
+        """
+        Validate the data before inserting/updating the document type.
 
-    async def _handle_db_operation(
-        self, operation_name: str, operation_func, *args, **kwargs
-    ):
-        """Generic error handler for database operations"""
-        try:
-            if not self.supabase:
-                raise ConnectionError("No database connection available")
-            return await operation_func(*args, **kwargs)
-        except Exception as e:
-            self.logger.error(f"Error in {operation_name}: {str(e)}")
-            raise
+        Args:
+            data (dict): The data to validate
+
+        Returns:
+            bool: True if data is valid, False otherwise
+        """
+        required_fields = ["document_type"]
+
+        # Check if all required fields are present and not None
+        for field in required_fields:
+            if field not in data or data[field] is None:
+                self.logger.error(f"Missing required field: {field}")
+                return False
+
+        # Validate data types
+        if not isinstance(data["document_type"], str):
+            self.logger.error("document_type must be a string")
+            return False
+
+        # Optional field type validation
+        if "description" in data and data["description"] is not None:
+            if not isinstance(data["description"], str):
+                self.logger.error("description must be a string")
+                return False
+
+        if "mime_type" in data and data["mime_type"] is not None:
+            if not isinstance(data["mime_type"], str):
+                self.logger.error("mime_type must be a string")
+                return False
+
+        if "file_extension" in data and data["file_extension"] is not None:
+            if not isinstance(data["file_extension"], str):
+                self.logger.error("file_extension must be a string")
+                return False
+
+        if "category" in data and data["category"] is not None:
+            if not isinstance(data["category"], str):
+                self.logger.error("category must be a string")
+                return False
+
+        if "is_ai_generated" in data and data["is_ai_generated"] is not None:
+            if not isinstance(data["is_ai_generated"], bool):
+                self.logger.error("is_ai_generated must be a boolean")
+                return False
+
+        return True
 
     async def add(
         self,
@@ -207,8 +235,10 @@ class DocumentTypes(BaseDB):
         async def _crud_test_operation():
             self.logger.info("Starting CRUD test")
 
+            # Add timestamp to make document type name unique
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             new_type = {
-                "document_type": "Test Document",
+                "document_type": f"Test Document {timestamp}",  # Make unique
                 "description": "A test document type",
                 "mime_type": "application/pdf",
                 "file_extension": ".pdf",
