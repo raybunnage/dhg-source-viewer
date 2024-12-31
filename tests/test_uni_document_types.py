@@ -145,5 +145,175 @@ class TestDocumentTypes:
         # Clean up
         await document_types.delete(doc["id"])
 
+    async def test_update_nonexistent_document(self, document_types):
+        """Test updating a document that doesn't exist"""
+        with pytest.raises(ValueError):
+            await document_types.update(
+                "nonexistent-id", {"description": "New Description"}
+            )
+
+    async def test_delete_nonexistent_document(self, document_types):
+        """Test deleting a document that doesn't exist"""
+        with pytest.raises(ValueError):
+            await document_types.delete("nonexistent-id")
+
+    async def test_duplicate_document_type(self, document_types):
+        """Test adding a document with a duplicate name"""
+        # Add first document
+        doc = await document_types.add(
+            document_type="Duplicate Test", description="First Document"
+        )
+
+        # Try to add duplicate
+        with pytest.raises(ValueError):
+            await document_types.add(
+                document_type="Duplicate Test", description="Second Document"
+            )
+
+        # Clean up
+        await document_types.delete(doc["id"])
+
+    async def test_special_characters_in_document_type(self, document_types):
+        """Test adding a document type with special characters"""
+        special_name = "Test@#$%^&*()"
+        doc = await document_types.add(
+            document_type=special_name, description="Special Characters Test"
+        )
+
+        retrieved = await document_types.get_plus_by_name(special_name)
+        assert retrieved["document_type"] == special_name
+
+        # Clean up
+        await document_types.delete(doc["id"])
+
+    async def test_very_long_document_type(self, document_types):
+        """Test adding a document type with a very long name"""
+        long_name = "A" * 255  # Assuming 255 is the maximum length
+        doc = await document_types.add(
+            document_type=long_name, description="Long Name Test"
+        )
+
+        retrieved = await document_types.get_plus_by_name(long_name)
+        assert retrieved["document_type"] == long_name
+
+        # Clean up
+        await document_types.delete(doc["id"])
+
+    async def test_update_with_empty_values(self, document_types):
+        """Test updating a document with empty values"""
+        # First add a document
+        doc = await document_types.add(
+            document_type="Update Empty Test",
+            description="Original Description",
+            category="test_category",
+        )
+
+        # Try updating with empty values
+        with pytest.raises(ValueError):
+            await document_types.update(doc["id"], {"document_type": ""})
+
+        # Clean up
+        await document_types.delete(doc["id"])
+
+    async def test_whitespace_only_document_type(self, document_types):
+        """Test adding a document type with only whitespace"""
+        with pytest.raises(ValueError):
+            await document_types.add(document_type="   ", description="Whitespace Test")
+
+    async def test_null_values_in_optional_fields(self, document_types):
+        """Test adding a document with null values in optional fields"""
+        doc = await document_types.add(
+            document_type="Null Test",
+            description="Test Description",
+            mime_type=None,
+            file_extension=None,
+            category=None,
+            is_ai_generated=None,
+        )
+
+        retrieved = await document_types.get_by_id(doc["id"])
+        assert retrieved["document_type"] == "Null Test"
+        assert retrieved["mime_type"] is None
+        assert retrieved["file_extension"] is None
+
+        # Clean up
+        await document_types.delete(doc["id"])
+
+    async def test_unicode_characters(self, document_types):
+        """Test adding a document type with unicode characters"""
+        unicode_name = "测试文档类型 🚀 Café"
+        doc = await document_types.add(
+            document_type=unicode_name, description="Unicode Test"
+        )
+
+        retrieved = await document_types.get_plus_by_name(unicode_name)
+        assert retrieved["document_type"] == unicode_name
+
+        # Clean up
+        await document_types.delete(doc["id"])
+
+    async def test_update_with_none_values(self, document_types):
+        """Test updating optional fields to None"""
+        doc = await document_types.add(
+            document_type="Update None Test",
+            description="Original Description",
+            category="test_category",
+            mime_type="application/pdf",
+        )
+
+        # Update with None values
+        updated = await document_types.update(
+            doc["id"], {"category": None, "mime_type": None}
+        )
+
+        assert updated["category"] is None
+        assert updated["mime_type"] is None
+
+        # Clean up
+        await document_types.delete(doc["id"])
+
+    async def test_leading_trailing_whitespace(self, document_types):
+        """Test handling of leading/trailing whitespace in document type"""
+        # Test that whitespace-containing document types are rejected
+        with pytest.raises(ValueError):
+            await document_types.add(
+                document_type="  Whitespace Test  ", description="Whitespace Handling"
+            )
+
+        # Verify that properly formatted document type works
+        doc = await document_types.add(
+            document_type="Whitespace Test", description="Whitespace Handling"
+        )
+
+        # Clean up
+        await document_types.delete(doc["id"])
+
+    async def test_bulk_operations(self, document_types):
+        """Test adding and retrieving multiple documents"""
+        docs_to_add = [
+            ("Bulk Test 1", "Description 1"),
+            ("Bulk Test 2", "Description 2"),
+            ("Bulk Test 3", "Description 3"),
+        ]
+
+        added_docs = []
+        for doc_type, desc in docs_to_add:
+            doc = await document_types.add(document_type=doc_type, description=desc)
+            added_docs.append(doc)
+
+        # Get all documents and verify
+        all_docs = await document_types.get_all()
+        for doc in added_docs:
+            assert any(d["id"] == doc["id"] for d in all_docs)
+
+        # Clean up
+        for doc in added_docs:
+            await document_types.delete(doc["id"])
+
+    async def test_update_with_invalid_id_format(self, document_types):
+        """Test updating with invalid ID format"""
+        with pytest.raises(ValueError):
+            await document_types.update("invalid-id-format", {"description": "Test"})
+
 
 # pytest tests/test_uni_document_types.py -v
