@@ -175,7 +175,7 @@ class DocumentTypes(BaseDB[Dict[str, Any]]):
 
             self.logger.debug("Executing get_all query")
             response = await self.supabase.select_from_table(
-                self.table_name, fields, [("is_active", "eq", True)]
+                self.table_name, fields, []
             )
             if not response or len(response) == 0:
                 self.logger.debug("No document types found")
@@ -227,15 +227,27 @@ class DocumentTypes(BaseDB[Dict[str, Any]]):
         return await self._handle_db_operation("get_by_name", _get_by_name_operation)
 
     async def delete(self, document_type_id: str) -> bool:
-        self.logger.debug(f"Deleting document type: {document_type_id}")
+        self.logger.debug(
+            f"Performing hard delete for document type: {document_type_id}"
+        )
 
         if not document_type_id:
             self.logger.error("document_type_id is required parameter")
             raise ValidationError("document_type_id is required parameter")
 
         async def _delete_operation():
+            # First verify the record exists
+            existing = await self.supabase.select_from_table(
+                self.table_name, ["id"], [("id", "eq", document_type_id)]
+            )
+            if not existing:
+                self.logger.error(f"Document type not found: {document_type_id}")
+                raise RecordNotFoundError(
+                    f"Document type not found: {document_type_id}"
+                )
+
             self.logger.debug(
-                f"Executing delete operation for document type: {document_type_id}"
+                f"Executing hard delete for document type: {document_type_id}"
             )
             result = await self.supabase.delete_from_table(
                 self.table_name, [("id", "eq", document_type_id)]
@@ -243,7 +255,10 @@ class DocumentTypes(BaseDB[Dict[str, Any]]):
             if not result:
                 self.logger.error(f"Failed to delete document type: {document_type_id}")
                 raise DatabaseError("Failed to delete document type")
-            self.logger.debug(f"Successfully deleted document type: {document_type_id}")
+
+            self.logger.debug(
+                f"Successfully hard deleted document type: {document_type_id}"
+            )
             return True
 
         return await self._handle_db_operation("delete", _delete_operation)

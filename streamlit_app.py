@@ -3,6 +3,21 @@ from pathlib import Path
 from src.services.google_pydrive2 import GooglePyDrive2
 from src.services.supabase_service import SupabaseService
 from src.services.support_claude import AnthropicService
+from src.utils.logging_base import LoggingBase
+
+
+class StreamlitApp(LoggingBase):
+    def __init__(self):
+        super().__init__("StreamlitUI")
+        self.logger.info("Starting Streamlit application")
+
+    def render_page(self):
+        self.logger.debug("Rendering main page")
+        try:
+            # Your code here
+            pass
+        except Exception as e:
+            self.logger.error(f"Error rendering page: {e}", exc_info=True)
 
 
 def show_privacy_policy():
@@ -176,6 +191,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    app = StreamlitApp()
+    app.render_page()
 
 # streamlit run streamlit_app.py

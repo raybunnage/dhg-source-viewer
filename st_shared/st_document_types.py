@@ -95,7 +95,7 @@ class DocumentTypesManager(StreamlitBase):
             return False
 
     async def delete_document_type(self, document_type_id: str):
-        """Delete a document type"""
+        """Delete a document type (hard delete)"""
         try:
             client = await self.connection.get_client()
             result = await client.delete(document_type_id)

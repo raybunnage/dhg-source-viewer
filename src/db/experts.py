@@ -118,9 +118,7 @@ class Experts(BaseDB[Dict[str, Any]]):
 
         async def _get_all_operation():
             self.logger.debug("Executing get_all query")
-            result = await self.supabase.select_from_table(
-                self.table_name, fields, [("is_active", "eq", True)]
-            )
+            result = await self.supabase.select_from_table(self.table_name, fields)
             if not result:
                 self.logger.debug("No experts found")
                 raise RecordNotFoundError("No experts found or policy prevented read")
@@ -233,7 +231,10 @@ class Experts(BaseDB[Dict[str, Any]]):
         self.logger.debug(f"Deleting expert: {expert_id}")
 
         async def _delete_operation():
-            result = await super().delete(expert_id)
+            # Perform hard delete by removing the record from the database
+            result = await self.supabase.delete_from_table(
+                self.table_name, [("id", "eq", expert_id)]
+            )
             if not result:
                 self.logger.error(f"Failed to delete expert: {expert_id}")
                 raise DatabaseError("Failed to delete expert")

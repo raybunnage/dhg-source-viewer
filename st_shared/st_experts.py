@@ -104,10 +104,10 @@ class ExpertsManager(StreamlitBase):
             return False
 
     async def delete_expert(self, expert_id: str):
-        """Delete an expert"""
+        """Delete an expert permanently"""
         try:
             client = await self.connection.get_client()
-            result = await client.delete(expert_id)
+            result = await client.delete(expert_id)  # This now performs a hard delete
             if result:
                 self.logger.info(f"Successfully deleted expert ID: {expert_id}")
                 return True
@@ -276,10 +276,18 @@ class ExpertsManager(StreamlitBase):
         if selected_expert:
             selected_expert_id, selected_expert_name = selected_expert
             if st.button("Delete Expert"):
-                self.logger.info(f"Attempting to delete expert: {selected_expert_name}")
-                if self.run_async(self.delete_expert(selected_expert_id)):
-                    st.success(f"Expert '{selected_expert_name}' deleted successfully")
-                    st.rerun()
+                # Add a confirmation check before deletion
+                if st.checkbox("I understand this action cannot be undone"):
+                    self.logger.info(
+                        f"Attempting to delete expert: {selected_expert_name}"
+                    )
+                    if self.run_async(self.delete_expert(selected_expert_id)):
+                        st.success(
+                            f"Expert '{selected_expert_name}' deleted successfully"
+                        )
+                        st.rerun()
+                else:
+                    st.warning("Please confirm the permanent deletion")
 
     def render_alias_form(self):
         """Render the alias management form"""
