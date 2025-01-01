@@ -249,9 +249,9 @@ class Experts(BaseDB[Dict[str, Any]]):
             self.logger.info("Starting CRUD test")
 
             test_expert = {
-                "expert_name": "TestExpert",
+                "expert_name": "TestExpert5",
                 "full_name": "Test Expert Name",
-                "email_address": "test@example.com",
+                "email_address": "test2@example.com",
             }
             self.logger.debug(f"Test expert data: {test_expert}")
 

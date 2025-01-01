@@ -41,7 +41,7 @@ class TestExperts:
     async def test_add_and_delete_expert(self, experts):
         """Test adding and then deleting an expert"""
         expert = await experts.add(
-            expert_name="Test Expert",
+            expert_name="TestExpert2",
             full_name="Test Expert Full Name",
             email_address="test@example.com",
         )
