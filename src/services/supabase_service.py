@@ -290,6 +290,15 @@ class SupabaseService:
             self.logger.error(f"Password reset error: {str(e)}")
             return False
 
+    async def signup(self, email: str, password: str):
+        try:
+            await self.supabase.auth.sign_up({"email": email, "password": password})
+            self.logger.info(f"Signup successful for: {email}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Signup error: {str(e)}")
+            return False
+
     def clear_logs(self):
         """Clear the current day's log file"""
         log_dir = Path("logs")

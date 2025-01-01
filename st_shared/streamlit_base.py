@@ -34,6 +34,13 @@ class StreamlitBase:
         )
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
+        # File Handler
+        file_handler = logging.FileHandler(
+            "app.log"
+        )  # You can specify path like 'logs/app.log'
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
         return logger
 
     def _init_session_state(self):
