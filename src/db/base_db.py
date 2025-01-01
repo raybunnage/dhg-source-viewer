@@ -37,7 +37,7 @@ class BaseDB(ABC, Generic[T]):
     """
 
     # Standard field sets that all tables should have
-    BASE_FIELDS = ["id", "created_at", "updated_at", "is_active"]
+    # BASE_FIELDS = ["id", "created_at", "updated_at", "is_active"]
 
     def __init__(self, supabase_client):
         self.supabase = supabase_client
@@ -95,7 +95,7 @@ class BaseDB(ABC, Generic[T]):
 
         async def _get_operation():
             result = await self.supabase.select_from_table(
-                self.table_name, fields or self.BASE_FIELDS, [("id", "eq", record_id)]
+                self.table_name, fields, [("id", "eq", record_id)]
             )
             if not result:
                 raise RecordNotFoundError(f"Record {record_id} not found")
@@ -123,12 +123,12 @@ class BaseDB(ABC, Generic[T]):
         """Delete a record (soft delete by default)"""
 
         async def _delete_operation():
-            if soft:
-                result = await self.update(record_id, {"is_active": False})
-            else:
-                result = await self.supabase.delete_from_table(
-                    self.table_name, [("id", "eq", record_id)]
-                )
+            # if soft:
+            #     result = await self.update(record_id, {"is_active": False})
+            # else:
+            result = await self.supabase.delete_from_table(
+                self.table_name, [("id", "eq", record_id)]
+            )
             return bool(result)
 
         return await self._handle_db_operation("delete", _delete_operation)

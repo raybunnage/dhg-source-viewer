@@ -8,7 +8,6 @@ from typing import Optional
 
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
-from src.db.base_db import BaseDB
 
 
 @dataclass
@@ -26,8 +25,16 @@ class StreamlitBase:
         self._init_session_state()
 
     def _setup_logger(self, module_name: str):
-        logger_instance = BaseDB(log_level=logging.DEBUG)
-        return logger_instance.logger
+        logger = logging.getLogger(module_name)
+        logger.setLevel(logging.DEBUG)
+        # Create console handler with formatting
+        console_handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        return logger
 
     def _init_session_state(self):
         """Initialize session state with default values"""
@@ -63,3 +70,7 @@ class StreamlitBase:
     def clear_error(self):
         """Clear error message from session state"""
         st.session_state.app_state.last_error = None
+
+    def _validate_data(self, data):
+        # Add implementation here - for example:
+        pass  # or your actual validation logic

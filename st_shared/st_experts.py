@@ -56,6 +56,15 @@ class ExpertsManager(StreamlitBase):
         """Cache the connection instance"""
         return AsyncExpertsConnection()
 
+    def _validate_data(self, data):
+        """Implement the abstract method from BaseDB"""
+        # Basic validation - check if data is a dict and not empty
+        if not isinstance(data, dict):
+            raise ValueError("Data must be a dictionary")
+        if not data:
+            raise ValueError("Data cannot be empty")
+        return True
+
     async def add_expert(self, expert_data: dict):
         """Add a new expert"""
         try:
@@ -121,7 +130,7 @@ class ExpertsManager(StreamlitBase):
         """Get aliases for an expert"""
         try:
             client = await self.connection.get_client()
-            aliases = await client.get_aliases_by_expert_name(expert_name)
+            aliases = await client.get_alias(expert_name)
             return aliases
         except Exception as e:
             self.set_error(f"Error fetching aliases: {str(e)}")
