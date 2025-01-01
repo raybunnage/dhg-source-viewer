@@ -59,6 +59,7 @@ class DocumentTypesManager(StreamlitBase):
         """Add a new document type"""
         try:
             client = await self.connection.get_client()
+            self.logger.info(f"Adding document type with data: {document_type_data}")
             result = await client.add(
                 document_type_data["document_type"],
                 document_type_data["description"],
@@ -162,10 +163,15 @@ class DocumentTypesManager(StreamlitBase):
         description = st.text_input("Description")
         mime_type = st.text_input("Mime Type")
         file_extension = st.text_input("File Extension")
-        category = st.text_input("Category")
+        category = st.text_input("Category *", key="add_category")
         is_ai_generated = st.checkbox("Is AI Generated", value=False)
 
         if st.button("Add Document Type"):
+            # Validate category
+            if not category:
+                st.error("Category is a required field. Please enter a category.")
+                return
+
             document_type_data = {
                 "document_type": document_type,
                 "description": description,
@@ -174,6 +180,7 @@ class DocumentTypesManager(StreamlitBase):
                 "category": category,
                 "is_ai_generated": is_ai_generated,
             }
+            self.logger.info(f"Form data before add: {document_type_data}")
             if self.run_async(self.add_document_type(document_type_data)):
                 st.success(f"Document Type '{document_type}' added successfully")
                 st.rerun()
@@ -230,12 +237,19 @@ class DocumentTypesManager(StreamlitBase):
             file_extension = st.text_input(
                 "File Extension", value=selected_document_type[4]
             )
-            category = st.text_input("Category", value=selected_document_type[5])
+            category = st.text_input(
+                "Category *", value=selected_document_type[5], key="edit_category"
+            )
             is_ai_generated = st.checkbox(
                 "Is AI Generated", value=selected_document_type[6]
             )
 
             if st.button("Update Document Type"):
+                # Validate category
+                if not category:
+                    st.error("Category is a required field. Please enter a category.")
+                    return
+
                 update_document_type = {
                     "document_type": document_type,
                     "description": description,
