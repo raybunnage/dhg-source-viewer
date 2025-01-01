@@ -228,20 +228,33 @@ class Experts(BaseDB[Dict[str, Any]]):
         return await self._handle_db_operation("update expert", _update_operation)
 
     async def delete(self, expert_id: str) -> bool:
-        self.logger.debug(f"Deleting expert: {expert_id}")
+        self.logger.debug(f"Performing hard delete for expert: {expert_id}")
+
+        if not expert_id:
+            self.logger.error("expert_id is required parameter")
+            raise ValidationError("expert_id is required parameter")
 
         async def _delete_operation():
-            # Perform hard delete by removing the record from the database
+            # First verify the record exists
+            existing = await self.supabase.select_from_table(
+                self.table_name, ["id"], [("id", "eq", expert_id)]
+            )
+            if not existing:
+                self.logger.error(f"Expert not found: {expert_id}")
+                raise RecordNotFoundError(f"Expert not found: {expert_id}")
+
+            self.logger.debug(f"Executing hard delete for expert: {expert_id}")
             result = await self.supabase.delete_from_table(
                 self.table_name, [("id", "eq", expert_id)]
             )
             if not result:
                 self.logger.error(f"Failed to delete expert: {expert_id}")
                 raise DatabaseError("Failed to delete expert")
-            self.logger.debug(f"Successfully deleted expert: {expert_id}")
+
+            self.logger.debug(f"Successfully hard deleted expert: {expert_id}")
             return True
 
-        return await self._handle_db_operation("delete expert", _delete_operation)
+        return await self._handle_db_operation("delete", _delete_operation)
 
     async def do_crud_test(self):
         self.logger.debug("Starting CRUD test")

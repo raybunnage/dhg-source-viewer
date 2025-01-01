@@ -123,36 +123,20 @@ class DocumentTypes(BaseDB[Dict[str, Any]]):
 
         return await self._handle_db_operation("get_by_id", _get_by_id_operation)
 
-    async def update(
-        self, document_type_id: str, update_data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        self.logger.debug(
-            f"Updating document type {document_type_id} with data: {update_data}"
-        )
-
-        if not document_type_id or not update_data:
-            self.logger.error(
-                "document_type_id and update_data are required parameters"
+    async def update(self, document_type_id: str, data: dict) -> bool:
+        """Update a document type"""
+        try:
+            serialized_data = self.supabase._serialize_data(data)
+            result = (
+                await self.supabase.client.table("document_types")
+                .update(serialized_data)
+                .eq("id", document_type_id)
+                .execute()
             )
-            raise ValidationError(
-                "document_type_id and update_data are required parameters"
-            )
-
-        async def _update_operation():
-            update_data["updated_at"] = "now()"
-            self.logger.debug(
-                f"Executing update operation for document type: {document_type_id}"
-            )
-            result = await self.supabase.update_table(
-                self.table_name, update_data, [("id", "eq", document_type_id)]
-            )
-            if not result or len(result) == 0:
-                self.logger.error(f"Failed to update document type: {document_type_id}")
-                raise DatabaseError("Failed to update document type")
-            self.logger.debug(f"Successfully updated document type: {result}")
-            return result
-
-        return await self._handle_db_operation("update", _update_operation)
+            return bool(result.data)
+        except Exception as e:
+            logging.error(f"Error updating document type: {e}")
+            return False
 
     async def get_all(
         self, additional_fields: Optional[List[str]] = None

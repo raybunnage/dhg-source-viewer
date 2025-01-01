@@ -307,6 +307,16 @@ class SupabaseService:
         with open(log_file, "w") as f:
             f.truncate(0)
 
+    def _serialize_data(self, data: dict) -> dict:
+        """Serialize data for Supabase by converting Python types to JSON-compatible types"""
+        serialized = {}
+        for key, value in data.items():
+            if isinstance(value, bool):
+                serialized[key] = str(value).lower()  # Convert bool to 'true'/'false'
+            else:
+                serialized[key] = value
+        return serialized
+
 
 async def insert_test_emails():
     load_dotenv()
