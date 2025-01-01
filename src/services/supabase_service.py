@@ -5,6 +5,8 @@ from datetime import datetime
 import logging
 from pathlib import Path
 import asyncio
+import pytest
+from uuid import uuid4
 
 
 class SupabaseService:
@@ -317,6 +319,43 @@ class SupabaseService:
                 serialized[key] = value
         return serialized
 
+    async def get_user(self):
+        """Get the currently logged in user's details"""
+        try:
+            self.logger.debug("Fetching current user details")
+            user = await self.supabase.auth.get_user()
+            if user and hasattr(user, "user"):
+                self.logger.debug(
+                    f"Successfully retrieved user with ID: {user.user.id}"
+                )
+                return user.user
+            self.logger.warning("No user currently logged in")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting user details: {str(e)}")
+            return None
+
+    async def set_current_domain(self, domain_id: str | None) -> None:
+        """Set the current domain for subsequent Supabase operations."""
+        try:
+            self.logger.debug(f"Setting current domain to: {domain_id}")
+            response = await self.supabase.rpc(
+                "set_current_domain", {"domain_id": domain_id}
+            ).execute()
+
+            # Check if response has data attribute instead of error
+            if hasattr(response, "data"):
+                self.logger.debug("Successfully set current domain")
+            else:
+                self.logger.error("Failed to set current domain: Invalid response")
+                raise Exception(
+                    "Failed to set current domain: Invalid response from server"
+                )
+
+        except Exception as e:
+            self.logger.error(f"Error setting current domain: {str(e)}")
+            raise
+
 
 async def insert_test_emails():
     load_dotenv()
@@ -371,5 +410,110 @@ async def insert_test_emails():
         print(f"Error inserting multiple test emails: {e}")
 
 
+async def test_login_and_get_user():
+    load_dotenv()
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_KEY")
+    email = os.getenv("TEST_EMAIL")
+    password = os.getenv("TEST_PASSWORD")
+
+    if not all([url, key, email, password]):
+        raise ValueError("Missing required environment variables")
+
+    supabase = SupabaseService(url, key)
+
+    # Attempt login
+    login_response = await supabase.login(email, password)
+    if not login_response:
+        print("Login failed")
+        return
+
+    # Get user details
+    user = await supabase.get_user()
+    if user:
+        print(f"Successfully retrieved user ID: {user.id}")
+        print(f"User email: {user.email}")
+    else:
+        print("Failed to get user details")
+
+
+async def test_domain_operations():
+    load_dotenv()
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_KEY")
+    email = os.getenv("TEST_EMAIL")
+    password = os.getenv("TEST_PASSWORD")
+
+    if not all([url, key, email, password]):
+        raise ValueError("Missing required environment variables")
+
+    supabase = SupabaseService(url, key)
+
+    # Login first
+    login_response = await supabase.login(email, password)
+    if not login_response:
+        print("Login failed")
+        return
+
+    # Test setting domain
+    test_domain_id = str(uuid4())
+    try:
+        await supabase.set_current_domain(test_domain_id)
+        print(f"Successfully set domain to: {test_domain_id}")
+    except Exception as e:
+        print(f"Failed to set domain: {e}")
+        return
+
+    # Verify domain was set by querying a domain-scoped table
+    try:
+        response = await supabase.select_from_table("some_domain_scoped_table", ["*"])
+        print("Successfully queried domain-scoped table")
+    except Exception as e:
+        print(f"Error querying domain-scoped table: {e}")
+
+    # Test clearing domain
+    try:
+        await supabase.set_current_domain(None)
+        print("Successfully cleared domain")
+    except Exception as e:
+        print(f"Failed to clear domain: {e}")
+
+
 if __name__ == "__main__":
-    asyncio.run(insert_test_emails())
+
+    async def run_tests():
+        # await test_login_and_get_user()
+        await test_domain_operations()
+        # await insert_test_emails()
+
+    asyncio.run(run_tests())
+
+
+# class TestSupabaseService:
+#     # ... existing test code ...
+
+#     async def test_set_current_domain(self, supabase_service: SupabaseService):
+#         # Arrange
+#         test_domain_id = str(uuid4())
+
+#         # Act
+#         await supabase_service.set_current_domain(test_domain_id)
+
+#         # Assert - We can verify it worked by querying a domain-scoped table
+#         response = (
+#             await supabase_service.client.from_("some_domain_scoped_table")
+#             .select("*")
+#             .execute()
+#         )
+#         assert not response.error
+
+#     async def test_set_current_domain_invalid_uuid(
+#         self, supabase_service: SupabaseService
+#     ):
+#         # Arrange
+#         invalid_domain_id = "not-a-uuid"
+
+#         # Act & Assert
+#         with pytest.raises(Exception) as exc_info:
+#             await supabase_service.set_current_domain(invalid_domain_id)
+#         assert "Failed to set current domain" in str(exc_info.value)
