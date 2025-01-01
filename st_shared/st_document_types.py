@@ -123,7 +123,7 @@ class DocumentTypesManager(StreamlitBase):
         """Get aliases for a document type"""
         try:
             client = await self.connection.get_client()
-            aliases = await client.get_aliases_by_document_type(document_type)
+            aliases = await client.get_aliases(document_type)
             return aliases
         except Exception as e:
             self.set_error(f"Error fetching aliases: {str(e)}")
