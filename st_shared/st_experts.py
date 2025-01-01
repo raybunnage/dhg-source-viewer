@@ -276,18 +276,11 @@ class ExpertsManager(StreamlitBase):
         if selected_expert:
             selected_expert_id, selected_expert_name = selected_expert
             if st.button("Delete Expert"):
-                # Add a confirmation check before deletion
-                if st.checkbox("I understand this action cannot be undone"):
-                    self.logger.info(
-                        f"Attempting to delete expert: {selected_expert_name}"
-                    )
-                    if self.run_async(self.delete_expert(selected_expert_id)):
-                        st.success(
-                            f"Expert '{selected_expert_name}' deleted successfully"
-                        )
-                        st.rerun()
-                else:
-                    st.warning("Please confirm the permanent deletion")
+                # Remove the confirmation checkbox
+                self.logger.info(f"Attempting to delete expert: {selected_expert_name}")
+                if self.run_async(self.delete_expert(selected_expert_id)):
+                    st.success(f"Expert '{selected_expert_name}' deleted successfully")
+                    st.rerun()
 
     def render_alias_form(self):
         """Render the alias management form"""
@@ -354,6 +347,7 @@ class ExpertsManager(StreamlitBase):
         col1, col2 = st.columns(2)
 
         with col1:
+            # Move sidebar title and actions outside of col1
             st.sidebar.title("Manage Experts")
             st.sidebar.subheader("Actions")
             action = st.sidebar.radio(
