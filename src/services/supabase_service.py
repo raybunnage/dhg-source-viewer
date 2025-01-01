@@ -487,33 +487,3 @@ if __name__ == "__main__":
         # await insert_test_emails()
 
     asyncio.run(run_tests())
-
-
-# class TestSupabaseService:
-#     # ... existing test code ...
-
-#     async def test_set_current_domain(self, supabase_service: SupabaseService):
-#         # Arrange
-#         test_domain_id = str(uuid4())
-
-#         # Act
-#         await supabase_service.set_current_domain(test_domain_id)
-
-#         # Assert - We can verify it worked by querying a domain-scoped table
-#         response = (
-#             await supabase_service.client.from_("some_domain_scoped_table")
-#             .select("*")
-#             .execute()
-#         )
-#         assert not response.error
-
-#     async def test_set_current_domain_invalid_uuid(
-#         self, supabase_service: SupabaseService
-#     ):
-#         # Arrange
-#         invalid_domain_id = "not-a-uuid"
-
-#         # Act & Assert
-#         with pytest.raises(Exception) as exc_info:
-#             await supabase_service.set_current_domain(invalid_domain_id)
-#         assert "Failed to set current domain" in str(exc_info.value)
