@@ -130,7 +130,7 @@ class ExpertsManager(StreamlitBase):
         """Get aliases for an expert"""
         try:
             client = await self.connection.get_client()
-            aliases = await client.get_alias(expert_name)
+            aliases = await client.get_aliases(expert_name)
             return aliases
         except Exception as e:
             self.set_error(f"Error fetching aliases: {str(e)}")

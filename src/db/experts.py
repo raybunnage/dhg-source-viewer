@@ -156,61 +156,100 @@ class Experts(BaseDB[Dict[str, Any]]):
             "get expert by name", _get_by_name_operation
         )
 
+    async def get_aliases(self, expert_name: str) -> Optional[List[Dict[str, Any]]]:
+        self.logger.debug(f"Getting aliases for expert: {expert_name}")
+
+        if not expert_name:
+            self.logger.error("expert_name is required parameter")
+            raise ValidationError("expert_name is a required parameter")
+
+        async def _get_aliases_operation():
+            self.logger.debug(f"Finding expert data for: {expert_name}")
+            expert_data = await self.get_by_name(expert_name)
+            if not expert_data:
+                self.logger.error("Expert not found")
+                raise RecordNotFoundError(f"Expert not found: {expert_name}")
+
+            self.logger.debug(f"Found expert: {expert_data}")
+            self.logger.debug("Querying aliases")
+            result = await self.supabase.select_from_table(
+                self.alias_table_name,
+                ["id", "alias_name"],
+                [("expert_uuid", "eq", expert_data["id"])],
+            )
+            self.logger.debug(f"Found {len(result) if result else 0} aliases")
+            return result
+
+        return await self._handle_db_operation("get aliases", _get_aliases_operation)
+
     async def add_alias(
         self, expert_name: str, alias_name: str
     ) -> Optional[Dict[str, Any]]:
-        self.logger.debug(f"Adding alias {alias_name} for expert {expert_name}")
-
         if not expert_name or not alias_name:
             self.logger.error("expert_name and alias_name are required parameters")
             raise ValidationError("expert_name and alias_name are required parameters")
 
-        if not isinstance(expert_name, str) or not isinstance(alias_name, str):
-            self.logger.error("expert_name and alias_name must be strings")
-            raise ValidationError("expert_name and alias_name must be strings")
-
         async def _add_alias_operation():
+            # Get the expert first
             expert_data = await self.get_by_name(expert_name)
-            self.logger.debug(f"Found expert data: {expert_data}")
+            if not expert_data:
+                self.logger.error(f"Expert not found with name: {expert_name}")
+                raise RecordNotFoundError(f"Expert not found with name: {expert_name}")
 
-            alias_data = {"alias_name": alias_name, "expert_uuid": expert_data["id"]}
+            # Create the alias data
+            alias_data = {
+                "alias_name": alias_name,
+                "expert_uuid": expert_data["id"],
+            }
 
-            try:
-                self.logger.debug(f"Checking if alias exists: {alias_name}")
-                existing = await self.get_alias(alias_name, expert_data["id"])
-                self.logger.debug(f"Found existing alias: {existing}")
-                return existing
-            except RecordNotFoundError:
-                self.logger.debug("Creating new alias")
-                result = await self.supabase.insert_into_table(
-                    self.alias_table_name, alias_data
-                )
-                if not result:
-                    self.logger.error("Failed to add alias")
-                    raise DatabaseError("Failed to add alias")
-                self.logger.debug(f"Created new alias: {result}")
-                return result
+            # Check if alias already exists
+            existing_alias = await self.supabase.select_from_table(
+                self.alias_table_name,
+                ["id", "alias_name"],
+                [
+                    ("alias_name", "eq", alias_name),
+                    ("expert_uuid", "eq", expert_data["id"]),
+                ],
+            )
+
+            if existing_alias:
+                return existing_alias[0]
+
+            # Insert the new alias
+            result = await self.supabase.insert_into_table(
+                self.alias_table_name, alias_data
+            )
+
+            if not result:
+                self.logger.error("Failed to add alias")
+                raise DatabaseError("Failed to add alias")
+            return result
 
         return await self._handle_db_operation("add alias", _add_alias_operation)
 
-    async def get_alias(
-        self, alias_name: str, expert_id: str
-    ) -> Optional[Dict[str, Any]]:
-        self.logger.debug(f"Getting alias: {alias_name} for expert ID: {expert_id}")
+    async def delete_alias(self, alias_id: str) -> bool:
+        if not alias_id:
+            self.logger.error("alias_id is a required parameter")
+            raise ValidationError("alias_id is a required parameter")
 
-        result = await self.supabase.select_from_table(
-            self.alias_table_name,
-            ["id", "alias_name"],
-            [
-                ("alias_name", "eq", alias_name),
-                ("expert_uuid", "eq", expert_id),
-            ],
-        )
-        if not result:
-            self.logger.debug("Alias not found")
-            raise RecordNotFoundError("Alias not found")
-        self.logger.debug(f"Found alias: {result[0]}")
-        return result[0]
+        async def _delete_alias_operation():
+            existing_alias = await self.supabase.select_from_table(
+                self.alias_table_name, ["id"], [("id", "eq", alias_id)]
+            )
+
+            if not existing_alias:
+                self.logger.debug(f"Alias with id {alias_id} not found")
+                raise RecordNotFoundError(f"Alias with id {alias_id} not found")
+
+            result = await self.supabase.delete_from_table(
+                self.alias_table_name, [("id", "eq", alias_id)]
+            )
+            if not result:
+                self.logger.error(f"Failed to delete alias: {alias_id}")
+                raise DatabaseError(f"Failed to delete alias: {alias_id}")
+            return result
+
+        return await self._handle_db_operation("delete alias", _delete_alias_operation)
 
     async def update(
         self, expert_id: str, update_data: Dict[str, Any]
