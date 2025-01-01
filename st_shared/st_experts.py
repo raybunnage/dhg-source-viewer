@@ -225,7 +225,7 @@ class ExpertsManager(StreamlitBase):
 
         if selected_expert:
             selected_expert_id = selected_expert[0]
-            selected_expert_name = selected_expert[1]
+            expert_name = selected_expert[1]
             full_name = st.text_input("Full Name", value=selected_expert[1])
             bio = st.text_area("Bio", value=selected_expert[2])
             expertise_area = st.text_input("Expertise", value=selected_expert[3])
@@ -241,6 +241,7 @@ class ExpertsManager(StreamlitBase):
 
             if st.button("Update Expert"):
                 update_expert = {
+                    "expert_name": expert_name,
                     "full_name": full_name,
                     "bio": bio,
                     "expertise_area": expertise_area,
@@ -248,13 +249,23 @@ class ExpertsManager(StreamlitBase):
                     "is_in_core_group": is_in_core_group,
                     "email_address": email_address,
                 }
-                if self.run_async(
-                    self.update_expert(selected_expert_id, update_expert)
-                ):
-                    st.success(
-                        f"Expert updated successfully for {selected_expert_name}"
+                # Add debug logging
+                self.logger.info(f"Updating expert ID {selected_expert_id}")
+                self.logger.info(f"Update data: {update_expert}")
+
+                try:
+                    result = self.run_async(
+                        self.update_expert(selected_expert_id, update_expert)
                     )
-                    st.rerun()
+                    self.logger.info(f"Update result: {result}")
+                    if result:
+                        st.success(f"Expert updated successfully for {expert_name}")
+                        st.rerun()
+                    else:
+                        st.error("Update failed - no error but returned False")
+                except Exception as e:
+                    self.logger.error(f"Update failed with error: {str(e)}")
+                    st.error(f"Update failed: {str(e)}")
 
     def render_delete_expert_form(self):
         """Render the delete expert form"""

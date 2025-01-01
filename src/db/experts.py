@@ -256,13 +256,40 @@ class Experts(BaseDB[Dict[str, Any]]):
     ) -> Optional[Dict[str, Any]]:
         self.logger.debug(f"Updating expert {expert_id} with data: {update_data}")
 
+        if not expert_id:
+            self.logger.error("expert_id is required parameter")
+            raise ValidationError("expert_id is required parameter")
+
         async def _update_operation():
-            result = await super().update(expert_id, update_data)
+            # First verify the record exists
+            existing = await self.supabase.select_from_table(
+                self.table_name, ["id"], [("id", "eq", expert_id)]
+            )
+            if not existing:
+                self.logger.error(f"Expert not found: {expert_id}")
+                raise RecordNotFoundError(f"Expert not found: {expert_id}")
+
+            # Validate the update data
+            await self._validate_data({**existing[0], **update_data})
+
+            # Perform the update
+            result = await self.supabase.update_table(
+                self.table_name, update_data, [("id", "eq", expert_id)]
+            )
             if not result:
                 self.logger.error(f"Failed to update expert: {expert_id}")
                 raise DatabaseError("Failed to update expert")
-            self.logger.debug(f"Successfully updated expert: {result}")
-            return result
+
+            # Return the updated record
+            updated = await self.supabase.select_from_table(
+                self.table_name, ["*"], [("id", "eq", expert_id)]
+            )
+            if not updated:
+                self.logger.error(f"Failed to fetch updated expert: {expert_id}")
+                raise DatabaseError("Failed to fetch updated expert")
+
+            self.logger.debug(f"Successfully updated expert: {updated[0]}")
+            return updated[0]
 
         return await self._handle_db_operation("update expert", _update_operation)
 
