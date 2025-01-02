@@ -464,7 +464,7 @@ async def test_domain_operations():
 
         # Find Dynamic Healing Group domain
         dhg_domain = next(
-            (d for d in domains if d["name"] == "Lionya Apps"), None
+            (d for d in domains if d["name"] == "Dynamic Healing Group"), None
         )
         if dhg_domain:
             domain_id = dhg_domain["id"]
