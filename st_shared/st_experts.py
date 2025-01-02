@@ -16,8 +16,9 @@ from src.services.supabase_service import SupabaseService
 from src.db.experts import Experts
 
 
-class AsyncExpertsConnection:
+class AsyncExpertsConnection(StreamlitBase):
     def __init__(self):
+        super().__init__("experts_connection")
         self.client = None
         self._initialized = False
 
@@ -32,11 +33,23 @@ class AsyncExpertsConnection:
                 password = st.secrets["TEST_PASSWORD"]
 
                 await supabase.login(email, password)
+
+                domains = await supabase.select_from_table(
+                    "domains",
+                    ["id", "name"],
+                    where_filters=[("name", "eq", "Dynamic Healing Group")],
+                )
+                self.logger.info(f"Found domain ID: {domains[0]['id']}")
+                await supabase.set_current_domain(domains[0]["id"])
+
                 self.client = Experts(supabase)
                 self._initialized = True
                 st.session_state.app_state.is_initialized = True
+                self.logger.info("Supabase connection initialized successfully")
             except Exception as e:
-                raise Exception(f"Failed to initialize Supabase connection: {e}")
+                error_msg = f"Failed to initialize Supabase connection: {e}"
+                self.logger.error(error_msg)
+                raise Exception(error_msg)
 
     async def get_client(self):
         """Get the initialized client, initializing if necessary"""
