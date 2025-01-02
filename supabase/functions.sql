@@ -140,3 +140,20 @@ BEGIN
     END IF;
 END;
 $$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE POLICY "Dynamic Healing Group select access"
+ON uni_document_types
+FOR SELECT
+TO authenticated
+USING (
+    domain_id = COALESCE(
+        (current_setting('app.current_domain_id', true))::uuid,
+        '00000000-0000-0000-0000-000000000000'
+    )
+);
+
+SELECT * FROM uni_document_types;
+
+SELECT * FROM uni_document_types 
+WHERE domain_id = (current_setting('app.current_domain_id', true))::uuid;

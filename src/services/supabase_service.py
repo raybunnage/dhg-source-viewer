@@ -455,16 +455,43 @@ async def test_domain_operations():
         print("Login failed")
         return
 
-    # Test setting domain
-    test_domain_id = str(uuid4())
+    # Get available domains
     try:
-        await supabase.set_current_domain(test_domain_id)
-        print(f"Successfully set domain to: {test_domain_id}")
+        domains = await supabase.select_from_table("domains", ["id", "name"])
+        print("\nAvailable domains:")
+        for domain in domains:
+            print(f"- {domain['name']} (ID: {domain['id']})")
+
+        # Find Dynamic Healing Group domain
+        dhg_domain = next(
+            (d for d in domains if d["name"] == "Lionya Apps"), None
+        )
+        if dhg_domain:
+            domain_id = dhg_domain["id"]
+            print(f"\nFound Dynamic Healing Group domain ID: {domain_id}")
+
+            # Set the domain
+            await supabase.set_current_domain(domain_id)
+            print("Successfully set domain to Dynamic Healing Group")
+
+            # Get document types for the domain
+            document_types = await supabase.select_from_table(
+                "uni_document_types",
+                ["id", "document_type", "description"],
+            )
+            print("\nDocument Types for this domain:")
+            for doc_type in document_types:
+                print(
+                    f"- {doc_type['document_type']}: {doc_type.get('description', 'No description')}"
+                )
+        else:
+            print("\nDynamic Healing Group domain not found")
+            return
     except Exception as e:
-        print(f"Failed to set domain: {e}")
+        print(f"Error in domain operations: {e}")
         return
 
-    # Verify domain was set by querying a domain-scoped table
+    # Rest of the existing test code...
     try:
         response = await supabase.select_from_table("some_domain_scoped_table", ["*"])
         print("Successfully queried domain-scoped table")
