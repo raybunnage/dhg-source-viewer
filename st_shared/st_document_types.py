@@ -15,8 +15,9 @@ from src.services.supabase_service import SupabaseService
 from src.db.uni_document_types import DocumentTypes
 
 
-class AsyncDocumentTypesConnection:
+class AsyncDocumentTypesConnection(StreamlitBase):
     def __init__(self):
+        super().__init__("async_document_types_connection")
         self.client = None
         self._initialized = False
 
@@ -31,6 +32,14 @@ class AsyncDocumentTypesConnection:
                 password = st.secrets["TEST_PASSWORD"]
 
                 await supabase.login(email, password)
+                domains = await supabase.select_from_table(
+                    "domains",
+                    ["id", "name"],
+                    where_filters=[("name", "eq", "Dynamic Healing Group")],
+                )
+                self.logger.info(f"Found domain ID: {domains[0]['id']}")
+                await supabase.set_current_domain(domains[0]["id"])
+
                 self.client = DocumentTypes(supabase)
                 self._initialized = True
                 st.session_state.app_state.is_initialized = True

@@ -457,7 +457,9 @@ async def test_domain_operations():
 
     # Get available domains
     try:
-        domains = await supabase.select_from_table("domains", ["id", "name"])
+        domains = await supabase.select_from_table(
+            "domains", ["id", "name"], where_filters=[("name", "eq", "Dynamic Healing Group")]
+        )
         print("\nAvailable domains:")
         for domain in domains:
             print(f"- {domain['name']} (ID: {domain['id']})")
