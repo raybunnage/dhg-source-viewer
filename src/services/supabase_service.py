@@ -14,6 +14,10 @@ from functools import wraps
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Optional, Callable, List, Dict, Tuple, Union
 from tenacity import retry, stop_after_attempt, wait_exponential
+from postgrest import PostgrestError
+from supabase.lib.client_options import ClientOptions
+from gotrue import AuthApiError
+from supabase.lib.storage_api import StorageApiError
 
 
 def make_sync(async_func):
@@ -43,6 +47,22 @@ def make_sync(async_func):
 
 
 class SupabaseService:
+    """Service class for interacting with Supabase.
+
+    Provides methods for database operations, authentication, storage,
+    and realtime subscriptions.
+
+    Attributes:
+        url (str): Supabase project URL
+        api_key (str): Supabase API key
+    """
+
+    DEFAULT_TIMEOUT = 30  # seconds
+    MAX_RETRIES = 3
+    CHUNK_SIZE = 1000  # for bulk operations
+    STORAGE_UPLOAD_LIMIT = 50 * 1024 * 1024  # 50MB
+    ALLOWED_OPERATORS = ["eq", "neq", "lt", "gt", "lte", "gte", "like"]
+
     def __init__(self, url: str, api_key: str):
         if not url or not api_key:
             raise SupabaseError("URL and API key are required")
@@ -59,11 +79,17 @@ class SupabaseService:
             SupabaseConnectionError: If client initialization fails
         """
         try:
-            self._supabase = AsyncClient(self.url, self.api_key)
+            options = ClientOptions(
+                schema="public",
+                headers={"x-my-custom-header": "my-app-name"},
+                persist_session=True,
+                auto_refresh_token=True,
+                timeout=self.DEFAULT_TIMEOUT,
+            )
+            self._supabase = AsyncClient(self.url, self.api_key, options=options)
         except Exception as e:
-            self._logger.error(f"Failed to initialize Supabase client: {str(e)}")
             raise SupabaseConnectionError(
-                "Failed to initialize Supabase client", original_error=e
+                "Failed to initialize client", original_error=e
             )
 
     @property
@@ -85,8 +111,11 @@ class SupabaseService:
 
     @log_method()
     async def select_from_table(
-        self, table_name: str, fields: dict, where_filters: list = None
-    ):
+        self,
+        table_name: str,
+        fields: Union[dict, str],
+        where_filters: Optional[List[Tuple[str, str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         """Query data from a Supabase table with optional filters.
 
         Args:
@@ -97,8 +126,16 @@ class SupabaseService:
         Returns:
             list | None: List of matching records or None if no matches/error
         """
-        if not table_name:
-            raise SupabaseError("Table name is required")
+        if not isinstance(table_name, str) or not table_name.strip():
+            raise ValueError("Table name must be a non-empty string")
+
+        if not isinstance(fields, (dict, str)):
+            raise ValueError("Fields must be either a dictionary or string")
+
+        if where_filters and not all(
+            isinstance(f, tuple) and len(f) == 3 for f in where_filters
+        ):
+            raise ValueError("Invalid where_filters format")
 
         try:
             if fields == "*":
@@ -291,7 +328,7 @@ class SupabaseService:
             raise SupabaseQueryError("Failed to delete from table", original_error=e)
 
     @log_method()
-    async def login(self, email: str, password: str) -> tuple[bool, dict | None]:
+    async def login(self, email: str, password: str) -> tuple[bool, Optional[dict]]:
         """Login user with email and password.
 
         Args:
@@ -314,6 +351,14 @@ class SupabaseService:
             if response and hasattr(response, "user"):
                 return True, response.user
             return False, None
+        except AuthApiError as e:
+            raise SupabaseAuthenticationError(
+                f"Authentication failed: {str(e)}", original_error=e
+            )
+        except PostgrestError as e:
+            raise SupabaseQueryError(
+                f"Database error during login: {str(e)}", original_error=e
+            )
         except Exception as e:
             raise SupabaseAuthenticationError("Failed to login", original_error=e)
 
@@ -366,6 +411,7 @@ class SupabaseService:
         except Exception as e:
             raise SupabaseAuthenticationError("Failed to signup", original_error=e)
 
+    @log_method()
     def _serialize_data(self, data: dict) -> dict:
         """Serialize data for Supabase by converting Python types to JSON-compatible types.
 
@@ -399,7 +445,7 @@ class SupabaseService:
             return None
 
     @log_method()
-    async def set_current_domain(self, domain_id: str | None) -> None:
+    async def set_current_domain(self, domain_id: Optional[str]) -> None:
         """Set the current domain for subsequent Supabase operations.
 
         Args:
@@ -436,13 +482,24 @@ class SupabaseService:
         Returns:
             str: Public URL of the uploaded file
         """
+        if not bucket or not isinstance(bucket, str):
+            raise ValueError("Bucket must be a non-empty string")
+        if not file_data:
+            raise ValueError("File data cannot be empty")
+        if not file_path or not isinstance(file_path, str):
+            raise ValueError("File path must be a non-empty string")
+
         try:
             response = await self.supabase.storage.from_(bucket).upload(
                 file_path,
                 file_data,
                 {"content-type": content_type} if content_type else None,
             )
-            return response.get("Key")
+            if not response or "Key" not in response:
+                raise SupabaseError("Invalid response from storage upload")
+            return response["Key"]
+        except StorageApiError as e:
+            raise SupabaseError(f"Storage API error: {str(e)}", original_error=e)
         except Exception as e:
             raise SupabaseError("Failed to upload file", original_error=e)
 
@@ -499,7 +556,7 @@ class SupabaseService:
     @log_method()
     async def login_with_provider(
         self, provider: str, redirect_url: str = None
-    ) -> dict:
+    ) -> Dict[str, Any]:
         """Login with OAuth provider (Google, GitHub, etc.).
 
         Args:
@@ -555,14 +612,12 @@ class SupabaseService:
 
     # Role-Based Access Control Methods
     @log_method()
-    async def get_user_roles(self, user_id: str = None) -> list[str]:
-        """Get roles for the current or specified user.
-
-        Args:
-            user_id: Optional user ID, defaults to current user
-
-        Returns:
-            list[str]: List of role names
+    async def get_user_roles(
+        self, user_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Returns user roles with additional metadata
+        Example return: [{"role": "admin", "assigned_at": "2024-01-01"}]
         """
         try:
             response = await self.supabase.rpc(
@@ -599,10 +654,10 @@ class SupabaseService:
     async def subscribe_to_table(
         self,
         table_name: str,
-        callback: callable,
+        callback: Callable[[Dict[str, Any]], None],
         event: str = "*",
-        filter_str: str = None,
-    ):
+        filter_str: Optional[str] = None,
+    ) -> Any:
         """Subscribe to real-time changes on a table.
 
         Args:
@@ -625,6 +680,315 @@ class SupabaseService:
             return channel
         except Exception as e:
             raise SupabaseError("Failed to create subscription", original_error=e)
+
+    # Storage Bucket Management Methods
+    @log_method()
+    async def create_bucket(self, bucket_name: str, is_public: bool = False) -> dict:
+        """Create a new storage bucket.
+
+        Args:
+            bucket_name: Name of the bucket to create
+            is_public: Whether the bucket should be public
+
+        Returns:
+            dict: Created bucket information
+        """
+        try:
+            return await self.supabase.storage.create_bucket(
+                bucket_name, {"public": is_public}
+            )
+        except Exception as e:
+            raise SupabaseError("Failed to create bucket", original_error=e)
+
+    @log_method()
+    async def get_bucket(self, bucket_name: str) -> dict:
+        """Get bucket information.
+
+        Args:
+            bucket_name: Name of the bucket
+
+        Returns:
+            dict: Bucket information
+        """
+        try:
+            return await self.supabase.storage.get_bucket(bucket_name)
+        except Exception as e:
+            raise SupabaseError("Failed to get bucket", original_error=e)
+
+    @log_method()
+    async def list_buckets(self) -> list[dict]:
+        """List all storage buckets.
+
+        Returns:
+            list[dict]: List of bucket information
+        """
+        try:
+            return await self.supabase.storage.list_buckets()
+        except Exception as e:
+            raise SupabaseError("Failed to list buckets", original_error=e)
+
+    @log_method()
+    async def delete_bucket(self, bucket_name: str) -> bool:
+        """Delete a storage bucket.
+
+        Args:
+            bucket_name: Name of the bucket to delete
+
+        Returns:
+            bool: True if deletion was successful
+        """
+        try:
+            await self.supabase.storage.delete_bucket(bucket_name)
+            return True
+        except Exception as e:
+            raise SupabaseError("Failed to delete bucket", original_error=e)
+
+    @log_method()
+    async def empty_bucket(self, bucket_name: str) -> bool:
+        """Empty a storage bucket.
+
+        Args:
+            bucket_name: Name of the bucket to empty
+
+        Returns:
+            bool: True if operation was successful
+        """
+        try:
+            await self.supabase.storage.empty_bucket(bucket_name)
+            return True
+        except Exception as e:
+            raise SupabaseError("Failed to empty bucket", original_error=e)
+
+    # RPC Methods
+    @log_method()
+    async def rpc(self, function_name: str, params: dict = None) -> Any:
+        """Call a Postgres function via RPC.
+
+        Args:
+            function_name: Name of the function to call
+            params: Optional parameters for the function
+
+        Returns:
+            Any: Function result
+        """
+        try:
+            response = await self.supabase.rpc(function_name, params or {}).execute()
+            return response.data
+        except Exception as e:
+            raise SupabaseError(f"RPC call to {function_name} failed", original_error=e)
+
+    # Add sync versions for new methods
+
+    # Enhanced Authentication Methods
+    @log_method()
+    async def update_password(self, new_password: str) -> bool:
+        """Update password for the currently logged-in user.
+
+        Args:
+            new_password: The new password to set
+
+        Returns:
+            bool: True if password was updated successfully
+        """
+        try:
+            await self.supabase.auth.update_user({"password": new_password})
+            return True
+        except Exception as e:
+            raise SupabaseAuthenticationError(
+                "Failed to update password", original_error=e
+            )
+
+    @log_method()
+    async def verify_otp(self, email: str, token: str) -> bool:
+        """Verify one-time password token.
+
+        Args:
+            email: User's email address
+            token: OTP token to verify
+
+        Returns:
+            bool: True if verification successful
+        """
+        try:
+            await self.supabase.auth.verify_otp(
+                {"email": email, "token": token, "type": "email"}
+            )
+            return True
+        except Exception as e:
+            raise SupabaseAuthenticationError("Failed to verify OTP", original_error=e)
+
+    @log_method()
+    async def set_session(self, access_token: str, refresh_token: str) -> bool:
+        """Manually set the session tokens.
+
+        Args:
+            access_token: JWT access token
+            refresh_token: Refresh token
+
+        Returns:
+            bool: True if session was set successfully
+        """
+        try:
+            await self.supabase.auth.set_session(access_token, refresh_token)
+            return True
+        except Exception as e:
+            raise SupabaseAuthenticationError("Failed to set session", original_error=e)
+
+    # Advanced Query Methods
+    @log_method()
+    async def select_with_join(
+        self,
+        table_name: str,
+        foreign_table: str,
+        fields: list[str],
+        join_column: str,
+        foreign_key: str,
+        where_filters: list = None,
+    ) -> list:
+        """Select data with a JOIN operation.
+
+        Args:
+            table_name: Primary table name
+            foreign_table: Table to join with
+            fields: List of fields to select (format: ["table1.field1", "table2.field2"])
+            join_column: Column from primary table for joining
+            foreign_key: Column from foreign table for joining
+            where_filters: Optional filters in format [(column, operator, value)]
+
+        Returns:
+            list: Query results with joined data
+
+        Raises:
+            SupabaseQueryError: If the join operation fails
+            ValueError: If invalid join parameters are provided
+        """
+        try:
+            query = (
+                self.supabase.from_(table_name)
+                .select(",".join(fields))
+                .join(foreign_table, f"{join_column}=eq.{foreign_key}")
+            )
+
+            if where_filters:
+                for filter in where_filters:
+                    column, operator, value = filter
+                    query = self._apply_filter(query, column, operator, value)
+
+            response = await query.execute()
+            return response.data
+        except Exception as e:
+            raise SupabaseQueryError("Failed to execute join query", original_error=e)
+
+    @log_method()
+    async def bulk_insert(
+        self, table_name: str, records: list[dict], chunk_size: int = 1000
+    ) -> list:
+        """Insert multiple records efficiently.
+
+        Args:
+            table_name: Target table name
+            records: List of record dictionaries
+            chunk_size: Number of records per batch
+
+        Returns:
+            list: Inserted records
+        """
+        try:
+            results = []
+            for i in range(0, len(records), chunk_size):
+                chunk = records[i : i + chunk_size]
+                response = await self.supabase.table(table_name).insert(chunk).execute()
+                results.extend(response.data)
+            return results
+        except Exception as e:
+            raise SupabaseQueryError("Failed to perform bulk insert", original_error=e)
+
+    # Advanced Storage Methods
+    @log_method()
+    async def move_file(
+        self, source_bucket: str, dest_bucket: str, source_path: str, dest_path: str
+    ) -> bool:
+        """Move file between buckets.
+
+        Args:
+            source_bucket: Source bucket name
+            dest_bucket: Destination bucket name
+            source_path: Source file path
+            dest_path: Destination file path
+
+        Returns:
+            bool: True if move was successful
+        """
+        try:
+            # Download from source
+            file_data = await self.download_file(source_bucket, source_path)
+
+            # Upload to destination
+            await self.upload_file(dest_bucket, dest_path, file_data)
+
+            # Delete from source
+            await self.delete_file(source_bucket, [source_path])
+            return True
+        except Exception as e:
+            raise SupabaseError("Failed to move file", original_error=e)
+
+    @log_method()
+    async def get_public_url(self, bucket: str, file_path: str) -> str:
+        """Get public URL for a file.
+
+        Args:
+            bucket: Bucket name
+            file_path: Path to file
+
+        Returns:
+            str: Public URL
+        """
+        try:
+            return self.supabase.storage.from_(bucket).get_public_url(file_path)
+        except Exception as e:
+            raise SupabaseError("Failed to get public URL", original_error=e)
+
+    # Realtime Methods
+    @log_method()
+    async def subscribe_to_channel(self, channel: str, event: str, callback: Callable):
+        """Subscribe to a custom real-time channel.
+
+        Args:
+            channel: Channel name
+            event: Event to listen for
+            callback: Callback function
+        """
+        try:
+            channel = self.supabase.channel(channel)
+            channel.on(event, callback)
+            await channel.subscribe()
+            return channel
+        except Exception as e:
+            raise SupabaseError("Failed to subscribe to channel", original_error=e)
+
+    @make_sync
+    async def create_bucket_sync(self, *args, **kwargs):
+        return await self.create_bucket(*args, **kwargs)
+
+    @make_sync
+    async def get_bucket_sync(self, *args, **kwargs):
+        return await self.get_bucket(*args, **kwargs)
+
+    @make_sync
+    async def list_buckets_sync(self, *args, **kwargs):
+        return await self.list_buckets(*args, **kwargs)
+
+    @make_sync
+    async def delete_bucket_sync(self, *args, **kwargs):
+        return await self.delete_bucket(*args, **kwargs)
+
+    @make_sync
+    async def empty_bucket_sync(self, *args, **kwargs):
+        return await self.empty_bucket(*args, **kwargs)
+
+    @make_sync
+    async def rpc_sync(self, *args, **kwargs):
+        return await self.rpc(*args, **kwargs)
 
     # Add sync versions for new methods
     @make_sync
@@ -702,4 +1066,87 @@ class SupabaseService:
 
     @make_sync
     async def set_current_domain_sync(self, *args, **kwargs):
-        return await self.set_current_domain(*args, **kwargs)
+        return await self.set_current_domain(
+            *args, **kwargs
+        )  # Add sync versions for new methods
+
+    @make_sync
+    async def update_password_sync(self, *args, **kwargs):
+        return await self.update_password(*args, **kwargs)
+
+    @make_sync
+    async def verify_otp_sync(self, *args, **kwargs):
+        return await self.verify_otp(*args, **kwargs)
+
+    @make_sync
+    async def set_session_sync(self, *args, **kwargs):
+        return await self.set_session(*args, **kwargs)
+
+    @make_sync
+    async def select_with_join_sync(self, *args, **kwargs):
+        return await self.select_with_join(*args, **kwargs)
+
+    @make_sync
+    async def bulk_insert_sync(self, *args, **kwargs):
+        return await self.bulk_insert(*args, **kwargs)
+
+    @make_sync
+    async def move_file_sync(self, *args, **kwargs):
+        return await self.move_file(*args, **kwargs)
+
+    @make_sync
+    async def get_public_url_sync(self, *args, **kwargs):
+        return await self.get_public_url(*args, **kwargs)
+
+    @make_sync
+    async def subscribe_to_channel_sync(self, *args, **kwargs):
+        return await self.subscribe_to_channel(*args, **kwargs)
+
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
+    @log_method()
+    async def cleanup(self):
+        """Cleanup resources when service is no longer needed."""
+        try:
+            await self.supabase.auth.sign_out()
+            # Add any other cleanup needed
+        except Exception as e:
+            self._logger.error("Error during cleanup", error=e)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.cleanup()
+
+    async def _ensure_valid_session(self):
+        """Ensure the current session is valid, refresh if needed."""
+        try:
+            session = await self.supabase.auth.get_session()
+            if session and session.access_token:
+                # Check if token is close to expiring (e.g., within 5 minutes)
+                if self._is_token_expiring_soon(session.access_token):
+                    await self.refresh_session()
+        except Exception as e:
+            self._logger.warning(f"Session validation failed: {e}")
+            raise SupabaseAuthenticationError("Invalid session")
+
+    def _is_token_expiring_soon(self, token: str, threshold_minutes: int = 5) -> bool:
+        # Add JWT expiration checking logic
+        pass
+
+    async def check_connection(self) -> bool:
+        """Check if the connection to Supabase is healthy."""
+        try:
+            # Perform a simple query to verify connection
+            await self.supabase.rpc("heartbeat").execute()
+            return True
+        except Exception as e:
+            self._logger.error(f"Connection check failed: {e}")
+            return False
+
+    async def _ensure_connected(self):
+        """Ensure connection is available before operations."""
+        if not await self.check_connection():
+            await self._init_client()  # Reinitialize if needed
