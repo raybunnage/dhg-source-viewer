@@ -227,25 +227,25 @@ async def test_query_operations():
 
     # Test successful query
     try:
-        result = await supabase.select_from_table("domains", ["id", "name"])
+        result = await supabase.select_from_table("domains", {"id": True, "name": True})
         print("✓ Query executed successfully")
         print(f"  Retrieved {len(result)} records")
     except SupabaseQueryError as e:
         print(f"✗ Query failed: {e}")
 
     # Test invalid table query
-    # try:
-    #     result = await supabase.select_from_table("nonexistent_table", ["id"])
-    #     print("✗ Expected query failure, but got success")
-    # except SupabaseQueryError as e:
-    #     print("✓ Successfully caught query error for invalid table")
+    try:
+        result = await supabase.select_from_table("nonexistent_table", "id")
+        print("✗ Expected query failure, but got success")
+    except SupabaseQueryError as e:
+        print("✓ Successfully caught query error for invalid table")
 
-    # # Test invalid column query
-    # try:
-    #     result = await supabase.select_from_table("domains", ["nonexistent_column"])
-    #     print("✗ Expected query failure, but got success")
-    # except SupabaseQueryError as e:
-    #     print("✓ Successfully caught query error for invalid column")
+    # Test invalid column query
+    try:
+        result = await supabase.select_from_table("domains", "nonexistent_column")
+        print("✗ Expected query failure, but got success")
+    except SupabaseQueryError as e:
+        print("✓ Successfully caught query error for invalid column")
 
 
 async def test_authentication():
@@ -308,7 +308,7 @@ async def test_domain_management():
     try:
         domains = await supabase.select_from_table(
             "domains",
-            ["id", "name"],
+             {"id": True, "name": True},
             where_filters=[("name", "eq", "Dynamic Healing Group")],
         )
         if domains:
@@ -394,17 +394,17 @@ async def test_domain_management():
 if __name__ == "__main__":
 
     async def run_all_tests():
-        # print("\n=== Testing Connection ===")
-        # await test_connection()
+        print("\n=== Testing Connection ===")
+        await test_connection()
 
-        # print("\n=== Testing Query Operations ===")
-        # await test_query_operations()
+        print("\n=== Testing Query Operations ===")
+        await test_query_operations()
 
         print("\n=== Testing Authentication ===")
         await test_authentication()
 
-        # print("\n=== Testing Domain Management ===")
-        # await test_domain_management()
+        print("\n=== Testing Domain Management ===")
+        await test_domain_management()
 
     asyncio.run(run_all_tests())
 

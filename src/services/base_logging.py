@@ -90,8 +90,9 @@ class Logger(LoggerInterface):
         self._logger.setLevel(logging.DEBUG)
 
         self._context = {}
+        # Create a formatter without the context first
         self._formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(context)s - %(message)s"
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
 
     def _update_file_handler(self) -> None:
@@ -107,6 +108,7 @@ class Logger(LoggerInterface):
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(self._formatter)
         self._logger.addHandler(file_handler)
+        self._logger.info("Log file created")
 
     def _check_rotate_log(self) -> None:
         current_date = datetime.now().date()
@@ -114,29 +116,35 @@ class Logger(LoggerInterface):
             self._current_date = current_date
             self._update_file_handler()
 
+    def _format_message(self, message: str) -> str:
+        if self._context:
+            context_str = " - ".join(f"{k}={v}" for k, v in self._context.items())
+            return f"{context_str} - {message}"
+        return message
+
     def debug(self, message: str) -> None:
         self._check_rotate_log()
-        self._logger.debug(message)
+        self._logger.debug(self._format_message(message))
 
     def info(self, message: str) -> None:
         self._check_rotate_log()
-        self._logger.info(message)
+        self._logger.info(self._format_message(message))
 
     def warning(self, message: str) -> None:
         self._check_rotate_log()
-        self._logger.warning(message)
+        self._logger.warning(self._format_message(message))
 
     def error(self, message: str, error: Exception = None) -> None:
         self._check_rotate_log()
-        self._logger.error(message, exc_info=error)
+        self._logger.error(self._format_message(message), exc_info=error)
 
     def critical(self, message: str, error: Exception = None) -> None:
         self._check_rotate_log()
-        self._logger.critical(message, exc_info=error)
+        self._logger.critical(self._format_message(message), exc_info=error)
 
     def exception(self, message: str) -> None:
         self._check_rotate_log()
-        self._logger.exception(message)
+        self._logger.exception(self._format_message(message))
 
     def set_level(self, level: int) -> None:
         self._logger.setLevel(level)
