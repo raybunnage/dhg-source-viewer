@@ -1,4 +1,4 @@
-from supabase import AsyncClient
+from supabase import AsyncClient, create_client
 import asyncio
 from pathlib import Path
 import sys
@@ -21,6 +21,8 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Optional, Callable, List, Dict, Tuple, Union
 from tenacity import retry, stop_after_attempt, wait_exponential
 from supabase.lib.client_options import ClientOptions
+from gotrue.errors import AuthApiError
+from gotrue import AsyncMemoryStorage, SyncMemoryStorage, AsyncGoTrueClient
 
 
 def make_sync(async_func):
@@ -90,11 +92,7 @@ class SupabaseService:
 
     @log_method()
     def _init_client(self) -> None:
-        """Initialize the Supabase async client.
-
-        Raises:
-            SupabaseConnectionError: If client initialization fails
-        """
+        """Initialize the Supabase async client."""
         try:
             options = ClientOptions(
                 schema="public",
@@ -103,8 +101,39 @@ class SupabaseService:
                 auto_refresh_token=True,
                 postgrest_client_timeout=self.DEFAULT_TIMEOUT,
             )
-            self._supabase = AsyncClient(self.url, self.api_key, options=options)
+
+            # Create the client
+            client = AsyncClient(self.url, self.api_key, options=options)
+
+            if not client:
+                raise SupabaseConnectionError("Failed to create AsyncClient")
+
+            # Initialize storage for auth
+            storage = AsyncMemoryStorage()
+
+            # Create and set auth client with storage
+            auth_client = AsyncGoTrueClient(
+                url=f"{self.url}/auth/v1",
+                headers={"apikey": self.api_key},
+                storage=storage,
+            )
+            client.auth = auth_client
+
+            self._supabase = client
+
+            # Add detailed debugging
+            self._logger.debug(f"""
+            Client initialization details:
+            - Client exists: {bool(self._supabase)}
+            - Auth exists: {bool(self._supabase.auth)}
+            - Auth type: {type(self._supabase.auth)}
+            - Auth storage exists: {bool(self._supabase.auth._storage)}
+            - URL valid: {bool(self.url)}
+            - API key valid: {bool(self.api_key)}
+            """)
+
         except Exception as e:
+            self._logger.error(f"Failed to initialize Supabase client: {str(e)}")
             raise SupabaseConnectionError(
                 "Failed to initialize client", original_error=e
             )
@@ -323,19 +352,83 @@ class SupabaseService:
             raise SupabaseQueryError("Failed to delete from table", original_error=e)
 
     @log_method()
-    async def login(self, email: str, password: str) -> bool:
+    async def login(self, email: str, password: str) -> dict:
         """Login to Supabase with email and password."""
         if not email or not password:
             raise SupabaseError("Email and password are required")
 
         try:
-            response = await self.supabase.auth.sign_in_with_password(
-                {"email": email, "password": password}
-            )
-            if not response or not response.user:
-                raise SupabaseAuthenticationError("Login failed - invalid credentials")
-            self.session = response.session
-            return True
+            # Verify client exists
+            if not self.supabase:
+                raise SupabaseConnectionError("Supabase client not initialized")
+
+            # Add detailed debugging
+            self._logger.debug(f"""
+            Login attempt details:
+            - Client exists: {bool(self.supabase)}
+            - Auth exists: {bool(self.supabase.auth)}
+            - Auth type: {type(self.supabase.auth)}
+            """)
+
+            # Use the newer API structure
+            try:
+                # Skip initialization for first-time login
+                auth_response = await self.supabase.auth.sign_in_with_password(
+                    {"email": email, "password": password}
+                )
+
+                if not auth_response:
+                    raise SupabaseAuthenticationError("Empty response received")
+
+                if not auth_response.user:
+                    raise SupabaseAuthenticationError("No user data in response")
+
+                if not auth_response.session:
+                    raise SupabaseAuthenticationError("No session created")
+
+                self.session = auth_response.session
+
+                return {
+                    "user": {
+                        "id": auth_response.user.id,
+                        "email": auth_response.user.email,
+                        "last_sign_in": auth_response.user.last_sign_in_at,
+                        "created_at": auth_response.user.created_at,
+                        "email_confirmed": bool(auth_response.user.email_confirmed_at),
+                    },
+                    "session": {
+                        "access_token": auth_response.session.access_token,
+                        "expires_at": auth_response.session.expires_at,
+                        "refresh_token": auth_response.session.refresh_token,
+                    },
+                }
+
+            except AttributeError as ae:
+                self._logger.error(f"AttributeError during sign in: {str(ae)}")
+                raise SupabaseAuthenticationError(f"Sign in method error: {str(ae)}")
+            except TypeError as te:
+                self._logger.error(f"TypeError during sign in: {str(te)}")
+                raise SupabaseAuthenticationError(
+                    f"Type error during sign in: {str(te)}"
+                )
+
+        except AuthApiError as e:
+            error_code = getattr(e, "code", None)
+            error_msg = getattr(e, "message", str(e))
+
+            if "400" in str(error_code):
+                raise SupabaseAuthenticationError("Invalid email or password")
+            elif "401" in str(error_code):
+                raise SupabaseAuthenticationError("Unauthorized access")
+            elif "403" in str(error_code):
+                raise SupabaseAuthenticationError("Email not confirmed")
+            elif "429" in str(error_code):
+                raise SupabaseAuthenticationError(
+                    "Too many login attempts. Please try again later"
+                )
+            else:
+                raise SupabaseAuthenticationError(f"Authentication failed: {error_msg}")
+
         except Exception as e:
             raise SupabaseAuthenticationError("Authentication failed", original_error=e)
 

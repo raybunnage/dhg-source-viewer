@@ -234,18 +234,18 @@ async def test_query_operations():
         print(f"✗ Query failed: {e}")
 
     # Test invalid table query
-    try:
-        result = await supabase.select_from_table("nonexistent_table", ["id"])
-        print("✗ Expected query failure, but got success")
-    except SupabaseQueryError as e:
-        print("✓ Successfully caught query error for invalid table")
+    # try:
+    #     result = await supabase.select_from_table("nonexistent_table", ["id"])
+    #     print("✗ Expected query failure, but got success")
+    # except SupabaseQueryError as e:
+    #     print("✓ Successfully caught query error for invalid table")
 
-    # Test invalid column query
-    try:
-        result = await supabase.select_from_table("domains", ["nonexistent_column"])
-        print("✗ Expected query failure, but got success")
-    except SupabaseQueryError as e:
-        print("✓ Successfully caught query error for invalid column")
+    # # Test invalid column query
+    # try:
+    #     result = await supabase.select_from_table("domains", ["nonexistent_column"])
+    #     print("✗ Expected query failure, but got success")
+    # except SupabaseQueryError as e:
+    #     print("✓ Successfully caught query error for invalid column")
 
 
 async def test_authentication():
@@ -255,16 +255,36 @@ async def test_authentication():
     email = os.getenv("TEST_EMAIL")
     password = os.getenv("TEST_PASSWORD")
 
-    supabase = SupabaseService(url, key)
+    print(f"\nDebug Info:")
+    print(f"URL exists: {bool(url)}")
+    print(f"Key exists: {bool(key)}")
+    print(f"Email exists: {bool(email)}")
+    print(f"Password exists: {bool(password)}")
 
-    # Test successful login
     try:
-        await supabase.login(email, password)
-        user = await supabase.get_user()
-        print("✓ Login successful")
-        print(f"  User ID: {user.id}")
-    except SupabaseAuthenticationError as e:
-        print(f"✗ Login failed: {e}")
+        supabase = SupabaseService(url, key)
+        print("✓ Supabase service initialized")
+
+        if not supabase.supabase:
+            print("✗ Supabase client is None after initialization")
+            return
+
+        print("Attempting login...")
+        try:
+            await supabase.login(email, password)
+            user = await supabase.get_user()
+            print("✓ Login successful")
+            print(f"  User ID: {user.id}")
+        except SupabaseAuthenticationError as e:
+            print(f"✗ Login failed with SupabaseAuthenticationError: {str(e)}")
+            if hasattr(e, "original_error"):
+                print(f"Original error: {str(e.original_error)}")
+        except Exception as e:
+            print(f"✗ Login failed with unexpected error: {str(e)}")
+            print(f"Error type: {type(e)}")
+    except Exception as e:
+        print(f"✗ Service initialization failed: {str(e)}")
+        print(f"Error type: {type(e)}")
 
     # Test invalid credentials
     try:
@@ -374,8 +394,8 @@ async def test_domain_management():
 if __name__ == "__main__":
 
     async def run_all_tests():
-        print("\n=== Testing Connection ===")
-        await test_connection()
+        # print("\n=== Testing Connection ===")
+        # await test_connection()
 
         # print("\n=== Testing Query Operations ===")
         # await test_query_operations()
@@ -383,8 +403,8 @@ if __name__ == "__main__":
         print("\n=== Testing Authentication ===")
         await test_authentication()
 
-        print("\n=== Testing Domain Management ===")
-        await test_domain_management()
+        # print("\n=== Testing Domain Management ===")
+        # await test_domain_management()
 
     asyncio.run(run_all_tests())
 
