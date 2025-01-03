@@ -1,30 +1,26 @@
-from dotenv import load_dotenv
 from supabase import AsyncClient
-from datetime import datetime
 import asyncio
-from .base_logging import Logger, log_method
-from .exceptions import (
+from pathlib import Path
+import sys
+
+project_root = str(Path(__file__).parent.parent.parent)
+sys.path.append(project_root)
+
+from src.services.base_logging import Logger, log_method
+from src.services.exceptions import (
     SupabaseConnectionError,
     SupabaseQueryError,
     SupabaseAuthenticationError,
     SupabaseAuthorizationError,
     SupabaseError,
     SupabaseStorageError,
-    SupabaseStorageAuthError,
-    SupabaseStoragePermissionError,
-    SupabaseStorageQuotaError,
-    SupabaseStorageNotFoundError,
-    SupabaseStorageValidationError,
     map_storage_error,
 )
 from functools import wraps
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Optional, Callable, List, Dict, Tuple, Union
 from tenacity import retry, stop_after_attempt, wait_exponential
-from postgrest import PostgrestError
 from supabase.lib.client_options import ClientOptions
-from gotrue import AuthApiError
-from storage3.types import StorageError, StorageApiError
 
 
 def make_sync(async_func):
@@ -105,7 +101,7 @@ class SupabaseService:
                 headers={"x-my-custom-header": "my-app-name"},
                 persist_session=True,
                 auto_refresh_token=True,
-                timeout=self.DEFAULT_TIMEOUT,
+                postgrest_client_timeout=self.DEFAULT_TIMEOUT,
             )
             self._supabase = AsyncClient(self.url, self.api_key, options=options)
         except Exception as e:
@@ -201,7 +197,9 @@ class SupabaseService:
                 return None
             return response.data
         except Exception as e:
-            raise SupabaseQueryError("Failed to select from table", original_error=e)
+            raise SupabaseQueryError(
+                f"Failed to select from table {table_name}", original_error=e
+            )
 
     @log_method()
     async def update_table(
@@ -325,19 +323,8 @@ class SupabaseService:
             raise SupabaseQueryError("Failed to delete from table", original_error=e)
 
     @log_method()
-    async def login(self, email: str, password: str) -> tuple[bool, Optional[dict]]:
-        """Login user with email and password.
-
-        Args:
-            email: User's email address
-            password: User's password
-
-        Returns:
-            tuple: (success: bool, user_data: dict | None)
-
-        Raises:
-            ValueError: If email or password is missing
-        """
+    async def login(self, email: str, password: str) -> bool:
+        """Login to Supabase with email and password."""
         if not email or not password:
             raise SupabaseError("Email and password are required")
 
@@ -345,19 +332,12 @@ class SupabaseService:
             response = await self.supabase.auth.sign_in_with_password(
                 {"email": email, "password": password}
             )
-            if response and hasattr(response, "user"):
-                return True, response.user
-            return False, None
-        except AuthApiError as e:
-            raise SupabaseAuthenticationError(
-                f"Authentication failed: {str(e)}", original_error=e
-            )
-        except PostgrestError as e:
-            raise SupabaseQueryError(
-                f"Database error during login: {str(e)}", original_error=e
-            )
+            if not response or not response.user:
+                raise SupabaseAuthenticationError("Login failed - invalid credentials")
+            self.session = response.session
+            return True
         except Exception as e:
-            raise SupabaseAuthenticationError("Failed to login", original_error=e)
+            raise SupabaseAuthenticationError("Authentication failed", original_error=e)
 
     @log_method()
     async def logout(self) -> bool:
@@ -503,7 +483,7 @@ class SupabaseService:
             if not response or "Key" not in response:
                 raise SupabaseStorageError("Invalid response from storage upload")
             return response["Key"]
-        except (StorageError, StorageApiError) as e:
+        except StorageApiError as e:
             raise map_storage_error(e)
         except Exception as e:
             raise SupabaseStorageError("Failed to upload file", original_error=e)
@@ -536,7 +516,7 @@ class SupabaseService:
             if not response:
                 raise SupabaseStorageError("No data received from storage download")
             return response
-        except (StorageError, StorageApiError) as e:
+        except StorageApiError as e:
             raise map_storage_error(e)
         except Exception as e:
             raise SupabaseStorageError("Failed to download file", original_error=e)
@@ -569,7 +549,7 @@ class SupabaseService:
         try:
             await self.supabase.storage.from_(bucket).remove(file_paths)
             return True
-        except (StorageError, StorageApiError) as e:
+        except StorageApiError as e:
             raise map_storage_error(e)
         except Exception as e:
             raise SupabaseStorageError("Failed to delete files", original_error=e)
@@ -602,7 +582,7 @@ class SupabaseService:
             if response is None:
                 return []
             return response
-        except (StorageError, StorageApiError) as e:
+        except StorageApiError as e:
             raise map_storage_error(e)
         except Exception as e:
             raise SupabaseStorageError("Failed to list files", original_error=e)
@@ -767,7 +747,7 @@ class SupabaseService:
             if not response:
                 raise SupabaseStorageError("Invalid response from bucket creation")
             return response
-        except (StorageError, StorageApiError) as e:
+        except StorageApiError as e:
             raise map_storage_error(e)
         except Exception as e:
             raise SupabaseStorageError("Failed to create bucket", original_error=e)
@@ -822,7 +802,7 @@ class SupabaseService:
         try:
             await self.supabase.storage.delete_bucket(bucket_name)
             return True
-        except (StorageError, StorageApiError) as e:
+        except StorageApiError as e:
             raise map_storage_error(e)
         except Exception as e:
             raise SupabaseStorageError("Failed to delete bucket", original_error=e)
@@ -850,7 +830,7 @@ class SupabaseService:
         try:
             await self.supabase.storage.empty_bucket(bucket_name)
             return True
-        except (StorageError, StorageApiError) as e:
+        except StorageApiError as e:
             raise map_storage_error(e)
         except Exception as e:
             raise SupabaseStorageError("Failed to empty bucket", original_error=e)

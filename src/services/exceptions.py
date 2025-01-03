@@ -1,5 +1,5 @@
 from typing import Optional
-from storage3.types import StorageError, StorageApiError
+from storage3.utils import StorageException
 
 
 # Base Exception for your entire application
@@ -26,19 +26,22 @@ class DatabaseError(ServiceError):
     pass
 
 
-class SupabaseError(DatabaseError):
-    """Specific Supabase-related errors"""
+class SupabaseError(Exception):
+    """Base exception for Supabase errors"""
+
+    def __init__(self, message: str, original_error: Exception = None):
+        self.message = message
+        self.original_error = original_error
+        super().__init__(self.message)
+
+
+class SupabaseConnectionError(SupabaseError):
+    """Raised when unable to establish a connection to Supabase"""
 
     pass
 
 
 # Specific Supabase error types
-class SupabaseConnectionError(SupabaseError):
-    """Raised when unable to connect to Supabase"""
-
-    pass
-
-
 class SupabaseQueryError(SupabaseError):
     """Raised when a query fails"""
 
@@ -59,13 +62,13 @@ class AnthropicError(AIServiceError):
 
 
 # Storage service exceptions
-class StorageError(ServiceError):
-    """Base exception for storage-related services"""
+class StorageError(Exception):
+    """Base class for storage-related errors"""
 
     pass
 
 
-class GoogleDriveError(StorageError):
+class GoogleDriveError(ServiceError):
     """Specific Google Drive-related errors"""
 
     pass
@@ -127,11 +130,11 @@ class SupabaseStorageValidationError(SupabaseStorageError):
     pass
 
 
-def map_storage_error(error: StorageError | StorageApiError) -> SupabaseStorageError:
-    """Maps storage3 errors to our custom exceptions.
+def map_storage_error(error: StorageException) -> SupabaseStorageError:
+    """Maps Supabase storage exceptions to our custom exceptions.
 
     Args:
-        error: Original storage error from storage3
+        error: Original storage exception from Supabase client
 
     Returns:
         Appropriate SupabaseStorageError subclass
