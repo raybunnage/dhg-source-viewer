@@ -1,3 +1,7 @@
+from typing import Optional
+from storage3.types import StorageError, StorageApiError
+
+
 # Base Exception for your entire application
 class ApplicationError(Exception):
     """Base exception class for all application errors"""
@@ -84,3 +88,73 @@ class SupabaseAuthorizationError(AuthError):
     """Raised when Supabase authorization/permissions fail (RLS, policies)"""
 
     pass
+
+
+# Storage specific exceptions
+class SupabaseStorageError(SupabaseError):
+    """Base exception for Supabase storage-related errors"""
+
+    pass
+
+
+class SupabaseStorageAuthError(SupabaseStorageError):
+    """Raised when storage operation fails due to authentication"""
+
+    pass
+
+
+class SupabaseStoragePermissionError(SupabaseStorageError):
+    """Raised when storage operation fails due to insufficient permissions"""
+
+    pass
+
+
+class SupabaseStorageQuotaError(SupabaseStorageError):
+    """Raised when storage operation fails due to quota limits"""
+
+    pass
+
+
+class SupabaseStorageNotFoundError(SupabaseStorageError):
+    """Raised when requested storage resource is not found"""
+
+    pass
+
+
+class SupabaseStorageValidationError(SupabaseStorageError):
+    """Raised when storage operation fails due to validation"""
+
+    pass
+
+
+def map_storage_error(error: StorageError | StorageApiError) -> SupabaseStorageError:
+    """Maps storage3 errors to our custom exceptions.
+
+    Args:
+        error: Original storage error from storage3
+
+    Returns:
+        Appropriate SupabaseStorageError subclass
+    """
+    error_message = str(error)
+
+    if "authentication" in error_message.lower():
+        return SupabaseStorageAuthError(
+            "Storage authentication failed", original_error=error
+        )
+    elif "permission" in error_message.lower():
+        return SupabaseStoragePermissionError(
+            "Insufficient storage permissions", original_error=error
+        )
+    elif "quota" in error_message.lower():
+        return SupabaseStorageQuotaError("Storage quota exceeded", original_error=error)
+    elif "not found" in error_message.lower():
+        return SupabaseStorageNotFoundError(
+            "Storage resource not found", original_error=error
+        )
+    elif "validation" in error_message.lower():
+        return SupabaseStorageValidationError(
+            "Storage validation failed", original_error=error
+        )
+    else:
+        return SupabaseStorageError("Storage operation failed", original_error=error)

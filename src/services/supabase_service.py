@@ -9,6 +9,13 @@ from .exceptions import (
     SupabaseAuthenticationError,
     SupabaseAuthorizationError,
     SupabaseError,
+    SupabaseStorageError,
+    SupabaseStorageAuthError,
+    SupabaseStoragePermissionError,
+    SupabaseStorageQuotaError,
+    SupabaseStorageNotFoundError,
+    SupabaseStorageValidationError,
+    map_storage_error,
 )
 from functools import wraps
 from concurrent.futures import ThreadPoolExecutor
@@ -17,7 +24,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from postgrest import PostgrestError
 from supabase.lib.client_options import ClientOptions
 from gotrue import AuthApiError
-from supabase.lib.storage_api import StorageApiError
+from storage3.types import StorageError, StorageApiError
 
 
 def make_sync(async_func):
@@ -61,7 +68,21 @@ class SupabaseService:
     MAX_RETRIES = 3
     CHUNK_SIZE = 1000  # for bulk operations
     STORAGE_UPLOAD_LIMIT = 50 * 1024 * 1024  # 50MB
-    ALLOWED_OPERATORS = ["eq", "neq", "lt", "gt", "lte", "gte", "like"]
+    ALLOWED_OPERATORS = [
+        "eq",  # equals
+        "neq",  # not equals
+        "gt",  # greater than
+        "gte",  # greater than or equal
+        "lt",  # less than
+        "lte",  # less than or equal
+        "like",  # LIKE operator
+        "ilike",  # case insensitive LIKE
+        "is",  # IS operator (for null)
+        "in",  # IN operator
+        "contains",  # contains for arrays/json
+        "contained_by",  # contained by for arrays/json
+        "text_search",  # full text search
+    ]
 
     def __init__(self, url: str, api_key: str):
         if not url or not api_key:
@@ -170,18 +191,6 @@ class SupabaseService:
                             query = query.contains(column, value)
                         elif operator == "contained_by":
                             query = query.contained_by(column, value)
-                        elif operator == "range_lt":
-                            query = query.range_lt(column, value)
-                        elif operator == "range_lte":
-                            query = query.range_lte(column, value)
-                        elif operator == "range_gt":
-                            query = query.range_gt(column, value)
-                        elif operator == "range_gte":
-                            query = query.range_gte(column, value)
-                        elif operator == "range_adjacent":
-                            query = query.range_adjacent(column, value)
-                        elif operator == "overlaps":
-                            query = query.overlaps(column, value)
                         elif operator == "text_search":
                             query = query.text_search(column, value)
                         else:
@@ -243,18 +252,6 @@ class SupabaseService:
                         query = query.contains(column, value)
                     elif operator == "contained_by":
                         query = query.contained_by(column, value)
-                    elif operator == "range_lt":
-                        query = query.range_lt(column, value)
-                    elif operator == "range_lte":
-                        query = query.range_lte(column, value)
-                    elif operator == "range_gt":
-                        query = query.range_gt(column, value)
-                    elif operator == "range_gte":
-                        query = query.range_gte(column, value)
-                    elif operator == "range_adjacent":
-                        query = query.range_adjacent(column, value)
-                    elif operator == "overlaps":
-                        query = query.overlaps(column, value)
                     elif operator == "text_search":
                         query = query.text_search(column, value)
                     else:
@@ -481,6 +478,14 @@ class SupabaseService:
 
         Returns:
             str: Public URL of the uploaded file
+
+        Raises:
+            ValueError: If invalid parameters are provided
+            SupabaseStorageAuthError: If storage authentication fails
+            SupabaseStoragePermissionError: If insufficient permissions
+            SupabaseStorageQuotaError: If storage quota is exceeded
+            SupabaseStorageValidationError: If file validation fails
+            SupabaseStorageError: For other storage-related errors
         """
         if not bucket or not isinstance(bucket, str):
             raise ValueError("Bucket must be a non-empty string")
@@ -496,12 +501,12 @@ class SupabaseService:
                 {"content-type": content_type} if content_type else None,
             )
             if not response or "Key" not in response:
-                raise SupabaseError("Invalid response from storage upload")
+                raise SupabaseStorageError("Invalid response from storage upload")
             return response["Key"]
-        except StorageApiError as e:
-            raise SupabaseError(f"Storage API error: {str(e)}", original_error=e)
+        except (StorageError, StorageApiError) as e:
+            raise map_storage_error(e)
         except Exception as e:
-            raise SupabaseError("Failed to upload file", original_error=e)
+            raise SupabaseStorageError("Failed to upload file", original_error=e)
 
     @log_method()
     async def download_file(self, bucket: str, file_path: str) -> bytes:
@@ -513,11 +518,28 @@ class SupabaseService:
 
         Returns:
             bytes: File data
+
+        Raises:
+            ValueError: If invalid parameters are provided
+            SupabaseStorageAuthError: If storage authentication fails
+            SupabaseStoragePermissionError: If insufficient permissions
+            SupabaseStorageNotFoundError: If file not found
+            SupabaseStorageError: For other storage-related errors
         """
+        if not bucket or not isinstance(bucket, str):
+            raise ValueError("Bucket must be a non-empty string")
+        if not file_path or not isinstance(file_path, str):
+            raise ValueError("File path must be a non-empty string")
+
         try:
-            return await self.supabase.storage.from_(bucket).download(file_path)
+            response = await self.supabase.storage.from_(bucket).download(file_path)
+            if not response:
+                raise SupabaseStorageError("No data received from storage download")
+            return response
+        except (StorageError, StorageApiError) as e:
+            raise map_storage_error(e)
         except Exception as e:
-            raise SupabaseError("Failed to download file", original_error=e)
+            raise SupabaseStorageError("Failed to download file", original_error=e)
 
     @log_method()
     async def delete_file(self, bucket: str, file_paths: list[str]) -> bool:
@@ -529,12 +551,28 @@ class SupabaseService:
 
         Returns:
             bool: True if deletion was successful
+
+        Raises:
+            ValueError: If invalid parameters are provided
+            SupabaseStorageAuthError: If storage authentication fails
+            SupabaseStoragePermissionError: If insufficient permissions
+            SupabaseStorageNotFoundError: If any file not found
+            SupabaseStorageError: For other storage-related errors
         """
+        if not bucket or not isinstance(bucket, str):
+            raise ValueError("Bucket must be a non-empty string")
+        if not file_paths or not isinstance(file_paths, list):
+            raise ValueError("File paths must be a non-empty list")
+        if not all(isinstance(path, str) for path in file_paths):
+            raise ValueError("All file paths must be strings")
+
         try:
             await self.supabase.storage.from_(bucket).remove(file_paths)
             return True
+        except (StorageError, StorageApiError) as e:
+            raise map_storage_error(e)
         except Exception as e:
-            raise SupabaseError("Failed to delete files", original_error=e)
+            raise SupabaseStorageError("Failed to delete files", original_error=e)
 
     @log_method()
     async def list_files(self, bucket: str, path: str = "") -> list[dict]:
@@ -546,11 +584,28 @@ class SupabaseService:
 
         Returns:
             list[dict]: List of file metadata
+
+        Raises:
+            ValueError: If invalid parameters are provided
+            SupabaseStorageAuthError: If storage authentication fails
+            SupabaseStoragePermissionError: If insufficient permissions
+            SupabaseStorageNotFoundError: If bucket not found
+            SupabaseStorageError: For other storage-related errors
         """
+        if not bucket or not isinstance(bucket, str):
+            raise ValueError("Bucket must be a non-empty string")
+        if not isinstance(path, str):
+            raise ValueError("Path must be a string")
+
         try:
-            return await self.supabase.storage.from_(bucket).list(path)
+            response = await self.supabase.storage.from_(bucket).list(path)
+            if response is None:
+                return []
+            return response
+        except (StorageError, StorageApiError) as e:
+            raise map_storage_error(e)
         except Exception as e:
-            raise SupabaseError("Failed to list files", original_error=e)
+            raise SupabaseStorageError("Failed to list files", original_error=e)
 
     # Enhanced Authentication Methods
     @log_method()
@@ -692,13 +747,30 @@ class SupabaseService:
 
         Returns:
             dict: Created bucket information
+
+        Raises:
+            ValueError: If invalid parameters are provided
+            SupabaseStorageAuthError: If storage authentication fails
+            SupabaseStoragePermissionError: If insufficient permissions
+            SupabaseStorageValidationError: If bucket name is invalid
+            SupabaseStorageError: For other storage-related errors
         """
+        if not bucket_name or not isinstance(bucket_name, str):
+            raise ValueError("Bucket name must be a non-empty string")
+        if not isinstance(is_public, bool):
+            raise ValueError("is_public must be a boolean")
+
         try:
-            return await self.supabase.storage.create_bucket(
+            response = await self.supabase.storage.create_bucket(
                 bucket_name, {"public": is_public}
             )
+            if not response:
+                raise SupabaseStorageError("Invalid response from bucket creation")
+            return response
+        except (StorageError, StorageApiError) as e:
+            raise map_storage_error(e)
         except Exception as e:
-            raise SupabaseError("Failed to create bucket", original_error=e)
+            raise SupabaseStorageError("Failed to create bucket", original_error=e)
 
     @log_method()
     async def get_bucket(self, bucket_name: str) -> dict:
@@ -736,12 +808,24 @@ class SupabaseService:
 
         Returns:
             bool: True if deletion was successful
+
+        Raises:
+            ValueError: If invalid parameters are provided
+            SupabaseStorageAuthError: If storage authentication fails
+            SupabaseStoragePermissionError: If insufficient permissions
+            SupabaseStorageNotFoundError: If bucket not found
+            SupabaseStorageError: For other storage-related errors
         """
+        if not bucket_name or not isinstance(bucket_name, str):
+            raise ValueError("Bucket name must be a non-empty string")
+
         try:
             await self.supabase.storage.delete_bucket(bucket_name)
             return True
+        except (StorageError, StorageApiError) as e:
+            raise map_storage_error(e)
         except Exception as e:
-            raise SupabaseError("Failed to delete bucket", original_error=e)
+            raise SupabaseStorageError("Failed to delete bucket", original_error=e)
 
     @log_method()
     async def empty_bucket(self, bucket_name: str) -> bool:
@@ -752,12 +836,24 @@ class SupabaseService:
 
         Returns:
             bool: True if operation was successful
+
+        Raises:
+            ValueError: If invalid parameters are provided
+            SupabaseStorageAuthError: If storage authentication fails
+            SupabaseStoragePermissionError: If insufficient permissions
+            SupabaseStorageNotFoundError: If bucket not found
+            SupabaseStorageError: For other storage-related errors
         """
+        if not bucket_name or not isinstance(bucket_name, str):
+            raise ValueError("Bucket name must be a non-empty string")
+
         try:
             await self.supabase.storage.empty_bucket(bucket_name)
             return True
+        except (StorageError, StorageApiError) as e:
+            raise map_storage_error(e)
         except Exception as e:
-            raise SupabaseError("Failed to empty bucket", original_error=e)
+            raise SupabaseStorageError("Failed to empty bucket", original_error=e)
 
     # RPC Methods
     @log_method()
@@ -879,155 +975,90 @@ class SupabaseService:
         except Exception as e:
             raise SupabaseQueryError("Failed to execute join query", original_error=e)
 
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
     @log_method()
-    async def bulk_insert(
-        self, table_name: str, records: list[dict], chunk_size: int = 1000
-    ) -> list:
-        """Insert multiple records efficiently.
-
-        Args:
-            table_name: Target table name
-            records: List of record dictionaries
-            chunk_size: Number of records per batch
-
-        Returns:
-            list: Inserted records
-        """
+    async def cleanup(self):
+        """Cleanup resources when service is no longer needed."""
         try:
-            results = []
-            for i in range(0, len(records), chunk_size):
-                chunk = records[i : i + chunk_size]
-                response = await self.supabase.table(table_name).insert(chunk).execute()
-                results.extend(response.data)
-            return results
+            await self.supabase.auth.sign_out()
+            # Add any other cleanup needed
         except Exception as e:
-            raise SupabaseQueryError("Failed to perform bulk insert", original_error=e)
+            self._logger.error("Error during cleanup", error=e)
 
-    # Advanced Storage Methods
-    @log_method()
-    async def move_file(
-        self, source_bucket: str, dest_bucket: str, source_path: str, dest_path: str
-    ) -> bool:
-        """Move file between buckets.
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.cleanup()
+
+    def _is_token_expiring_soon(self, token: str, threshold_minutes: int = 5) -> bool:
+        # Add JWT expiration checking logic
+        pass
+
+    async def _ensure_connected(self):
+        """Ensure connection is available before operations."""
+        if not await self.check_connection():
+            await self._init_client()  # Reinitialize if needed
+
+    async def create_search_index(self, table_name: str, column_name: str) -> bool:
+        """
+        Create a GIN index for full-text search on a column.
 
         Args:
-            source_bucket: Source bucket name
-            dest_bucket: Destination bucket name
-            source_path: Source file path
-            dest_path: Destination file path
+            table_name: Name of the table
+            column_name: Name of the column to index
 
         Returns:
-            bool: True if move was successful
+            bool: True if index was created successfully
         """
         try:
-            # Download from source
-            file_data = await self.download_file(source_bucket, source_path)
+            # Create a generated column for text search
+            await self.supabase.rpc(
+                "execute_sql",
+                {
+                    "query": f"""
+                ALTER TABLE {table_name} 
+                ADD COLUMN IF NOT EXISTS searchable_{column_name} tsvector 
+                GENERATED ALWAYS AS (to_tsvector('english', {column_name})) STORED;
+                """
+                },
+            ).execute()
 
-            # Upload to destination
-            await self.upload_file(dest_bucket, dest_path, file_data)
+            # Create GIN index
+            await self.supabase.rpc(
+                "execute_sql",
+                {
+                    "query": f"""
+                CREATE INDEX IF NOT EXISTS idx_{table_name}_{column_name}_search 
+                ON {table_name} USING gin(searchable_{column_name});
+                """
+                },
+            ).execute()
 
-            # Delete from source
-            await self.delete_file(source_bucket, [source_path])
             return True
         except Exception as e:
-            raise SupabaseError("Failed to move file", original_error=e)
-
-    @log_method()
-    async def get_public_url(self, bucket: str, file_path: str) -> str:
-        """Get public URL for a file.
-
-        Args:
-            bucket: Bucket name
-            file_path: Path to file
-
-        Returns:
-            str: Public URL
-        """
-        try:
-            return self.supabase.storage.from_(bucket).get_public_url(file_path)
-        except Exception as e:
-            raise SupabaseError("Failed to get public URL", original_error=e)
-
-    # Realtime Methods
-    @log_method()
-    async def subscribe_to_channel(self, channel: str, event: str, callback: Callable):
-        """Subscribe to a custom real-time channel.
-
-        Args:
-            channel: Channel name
-            event: Event to listen for
-            callback: Callback function
-        """
-        try:
-            channel = self.supabase.channel(channel)
-            channel.on(event, callback)
-            await channel.subscribe()
-            return channel
-        except Exception as e:
-            raise SupabaseError("Failed to subscribe to channel", original_error=e)
+            self._logger.error(f"Failed to create search index: {e}")
+            return False
 
     @make_sync
-    async def create_bucket_sync(self, *args, **kwargs):
-        return await self.create_bucket(*args, **kwargs)
+    async def bulk_insert_sync(self, *args, **kwargs):
+        return await self.bulk_insert(*args, **kwargs)
 
     @make_sync
-    async def get_bucket_sync(self, *args, **kwargs):
-        return await self.get_bucket(*args, **kwargs)
+    async def move_file_sync(self, *args, **kwargs):
+        return await self.move_file(*args, **kwargs)
 
     @make_sync
-    async def list_buckets_sync(self, *args, **kwargs):
-        return await self.list_buckets(*args, **kwargs)
+    async def subscribe_to_channel_sync(self, *args, **kwargs):
+        return await self.subscribe_to_channel(*args, **kwargs)
 
     @make_sync
-    async def delete_bucket_sync(self, *args, **kwargs):
-        return await self.delete_bucket(*args, **kwargs)
+    async def subscribe_to_table_sync(self, *args, **kwargs):
+        return await self.subscribe_to_table(*args, **kwargs)
 
-    @make_sync
-    async def empty_bucket_sync(self, *args, **kwargs):
-        return await self.empty_bucket(*args, **kwargs)
-
-    @make_sync
-    async def rpc_sync(self, *args, **kwargs):
-        return await self.rpc(*args, **kwargs)
-
-    # Add sync versions for new methods
-    @make_sync
-    async def upload_file_sync(self, *args, **kwargs):
-        return await self.upload_file(*args, **kwargs)
-
-    @make_sync
-    async def download_file_sync(self, *args, **kwargs):
-        return await self.download_file(*args, **kwargs)
-
-    @make_sync
-    async def delete_file_sync(self, *args, **kwargs):
-        return await self.delete_file(*args, **kwargs)
-
-    @make_sync
-    async def list_files_sync(self, *args, **kwargs):
-        return await self.list_files(*args, **kwargs)
-
-    @make_sync
-    async def login_with_provider_sync(self, *args, **kwargs):
-        return await self.login_with_provider(*args, **kwargs)
-
-    @make_sync
-    async def refresh_session_sync(self, *args, **kwargs):
-        return await self.refresh_session(*args, **kwargs)
-
-    @make_sync
-    async def update_user_sync(self, *args, **kwargs):
-        return await self.update_user(*args, **kwargs)
-
-    @make_sync
-    async def get_user_roles_sync(self, *args, **kwargs):
-        return await self.get_user_roles(*args, **kwargs)
-
-    @make_sync
-    async def check_permission_sync(self, *args, **kwargs):
-        return await self.check_permission(*args, **kwargs)
-
-    # Sync versions using the decorator
+    # Sync versions of all async methods
     @make_sync
     async def select_from_table_sync(self, *args, **kwargs):
         return await self.select_from_table(*args, **kwargs)
@@ -1066,9 +1097,67 @@ class SupabaseService:
 
     @make_sync
     async def set_current_domain_sync(self, *args, **kwargs):
-        return await self.set_current_domain(
-            *args, **kwargs
-        )  # Add sync versions for new methods
+        return await self.set_current_domain(*args, **kwargs)
+
+    @make_sync
+    async def upload_file_sync(self, *args, **kwargs):
+        return await self.upload_file(*args, **kwargs)
+
+    @make_sync
+    async def download_file_sync(self, *args, **kwargs):
+        return await self.download_file(*args, **kwargs)
+
+    @make_sync
+    async def delete_file_sync(self, *args, **kwargs):
+        return await self.delete_file(*args, **kwargs)
+
+    @make_sync
+    async def list_files_sync(self, *args, **kwargs):
+        return await self.list_files(*args, **kwargs)
+
+    @make_sync
+    async def login_with_provider_sync(self, *args, **kwargs):
+        return await self.login_with_provider(*args, **kwargs)
+
+    @make_sync
+    async def refresh_session_sync(self, *args, **kwargs):
+        return await self.refresh_session(*args, **kwargs)
+
+    @make_sync
+    async def update_user_sync(self, *args, **kwargs):
+        return await self.update_user(*args, **kwargs)
+
+    @make_sync
+    async def get_user_roles_sync(self, *args, **kwargs):
+        return await self.get_user_roles(*args, **kwargs)
+
+    @make_sync
+    async def check_permission_sync(self, *args, **kwargs):
+        return await self.check_permission(*args, **kwargs)
+
+    @make_sync
+    async def create_bucket_sync(self, *args, **kwargs):
+        return await self.create_bucket(*args, **kwargs)
+
+    @make_sync
+    async def get_bucket_sync(self, *args, **kwargs):
+        return await self.get_bucket(*args, **kwargs)
+
+    @make_sync
+    async def list_buckets_sync(self, *args, **kwargs):
+        return await self.list_buckets(*args, **kwargs)
+
+    @make_sync
+    async def delete_bucket_sync(self, *args, **kwargs):
+        return await self.delete_bucket(*args, **kwargs)
+
+    @make_sync
+    async def empty_bucket_sync(self, *args, **kwargs):
+        return await self.empty_bucket(*args, **kwargs)
+
+    @make_sync
+    async def rpc_sync(self, *args, **kwargs):
+        return await self.rpc(*args, **kwargs)
 
     @make_sync
     async def update_password_sync(self, *args, **kwargs):
@@ -1083,70 +1172,9 @@ class SupabaseService:
         return await self.set_session(*args, **kwargs)
 
     @make_sync
-    async def select_with_join_sync(self, *args, **kwargs):
-        return await self.select_with_join(*args, **kwargs)
+    async def create_search_index_sync(self, *args, **kwargs):
+        return await self.create_search_index(*args, **kwargs)
 
     @make_sync
-    async def bulk_insert_sync(self, *args, **kwargs):
-        return await self.bulk_insert(*args, **kwargs)
-
-    @make_sync
-    async def move_file_sync(self, *args, **kwargs):
-        return await self.move_file(*args, **kwargs)
-
-    @make_sync
-    async def get_public_url_sync(self, *args, **kwargs):
-        return await self.get_public_url(*args, **kwargs)
-
-    @make_sync
-    async def subscribe_to_channel_sync(self, *args, **kwargs):
-        return await self.subscribe_to_channel(*args, **kwargs)
-
-    @retry(
-        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
-    )
-    @log_method()
-    async def cleanup(self):
-        """Cleanup resources when service is no longer needed."""
-        try:
-            await self.supabase.auth.sign_out()
-            # Add any other cleanup needed
-        except Exception as e:
-            self._logger.error("Error during cleanup", error=e)
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.cleanup()
-
-    async def _ensure_valid_session(self):
-        """Ensure the current session is valid, refresh if needed."""
-        try:
-            session = await self.supabase.auth.get_session()
-            if session and session.access_token:
-                # Check if token is close to expiring (e.g., within 5 minutes)
-                if self._is_token_expiring_soon(session.access_token):
-                    await self.refresh_session()
-        except Exception as e:
-            self._logger.warning(f"Session validation failed: {e}")
-            raise SupabaseAuthenticationError("Invalid session")
-
-    def _is_token_expiring_soon(self, token: str, threshold_minutes: int = 5) -> bool:
-        # Add JWT expiration checking logic
-        pass
-
-    async def check_connection(self) -> bool:
-        """Check if the connection to Supabase is healthy."""
-        try:
-            # Perform a simple query to verify connection
-            await self.supabase.rpc("heartbeat").execute()
-            return True
-        except Exception as e:
-            self._logger.error(f"Connection check failed: {e}")
-            return False
-
-    async def _ensure_connected(self):
-        """Ensure connection is available before operations."""
-        if not await self.check_connection():
-            await self._init_client()  # Reinitialize if needed
+    async def cleanup_sync(self, *args, **kwargs):
+        return await self.cleanup(*args, **kwargs)
